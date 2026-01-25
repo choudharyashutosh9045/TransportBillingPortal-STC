@@ -10,6 +10,10 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -99,6 +103,91 @@ def now_ts():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+# ==========================
+# ✅ DATABASE (PostgreSQL Render)
+# ==========================
+def get_db_conn():
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        return None
+    return psycopg2.connect(db_url, sslmode="require")
+
+def init_db():
+    conn = get_db_conn()
+    if not conn:
+        print("⚠️ DATABASE_URL not set. DB disabled.")
+        return
+
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS bill_history (
+                id SERIAL PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT NOW(),
+                source_excel VARCHAR(255),
+                bill_no VARCHAR(100),
+                lr_no VARCHAR(100),
+                invoice_date VARCHAR(50),
+                due_date VARCHAR(50),
+                destination VARCHAR(200),
+                total_amount NUMERIC(12,2),
+                zip_name VARCHAR(255)
+            );
+        """)
+        conn.commit()
+
+    conn.close()
+    print("✅ DB ready: bill_history table created/checked.")
+
+
+def add_history_entry_db(source_excel, df, zip_name):
+    conn = get_db_conn()
+    if not conn:
+        return
+
+    with conn.cursor() as cur:
+        for _, r in df.iterrows():
+            row = r.to_dict()
+            bill_no = safe_str(row.get("FreightBillNo"))
+            lr_no = safe_str(row.get("LRNo"))
+            invoice_date = format_date(row.get("InvoiceDate"))
+            due_date = format_date(row.get("DueDate"))
+            destination = safe_str(row.get("Destination"))
+            total_amount = float(calc_total(row))
+
+            cur.execute("""
+                INSERT INTO bill_history
+                (source_excel, bill_no, lr_no, invoice_date, due_date, destination, total_amount, zip_name)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (source_excel, bill_no, lr_no, invoice_date, due_date, destination, total_amount, zip_name))
+
+        conn.commit()
+
+    conn.close()
+
+
+def get_history_db(limit=10):
+    conn = get_db_conn()
+    if not conn:
+        return []
+
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("""
+            SELECT id, created_at, source_excel, bill_no, lr_no, invoice_date, due_date, destination, total_amount, zip_name
+            FROM bill_history
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+
+    conn.close()
+
+    # convert datetime to string for JSON
+    for r in rows:
+        if r.get("created_at"):
+            r["created_at"] = r["created_at"].strftime("%d %b %Y %I:%M %p")
+    return rows
+
+
 # ---------------- PDF GENERATOR ----------------
 def generate_invoice_pdf(row: dict, pdf_path: str):
     row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
@@ -131,10 +220,10 @@ def generate_invoice_pdf(row: dict, pdf_path: str):
     if os.path.exists(logo_path):
         try:
             img = ImageReader(logo_path)
-            logo_w = 75 * mm
-            logo_h = 38 * mm
-            logo_x = LM + 6 * mm
-            logo_y = H - TM - 36 * mm
+            logo_w = 85 * mm
+            logo_h = 45 * mm
+            logo_x = LM + 4 * mm
+            logo_y = H - TM - 40 * mm
             c.drawImage(img, logo_x, logo_y, width=logo_w, height=logo_h, mask="auto", preserveAspectRatio=True)
         except Exception as e:
             print("LOGO ERROR:", e)
@@ -326,30 +415,6 @@ def generate_invoice_pdf(row: dict, pdf_path: str):
     c.save()
 
 
-# ---------------- HISTORY (RECENT BILLS) ----------------
-HISTORY_FILE = os.path.join(DATA_FOLDER, "history.csv")
-
-def add_history_entry(filename, rows_count):
-    df = pd.DataFrame([{
-        "time": now_ts(),
-        "file": filename,
-        "rows": rows_count
-    }])
-    if os.path.exists(HISTORY_FILE):
-        old = pd.read_csv(HISTORY_FILE)
-        out = pd.concat([df, old], ignore_index=True)
-        out.to_csv(HISTORY_FILE, index=False)
-    else:
-        df.to_csv(HISTORY_FILE, index=False)
-
-def get_history():
-    if not os.path.exists(HISTORY_FILE):
-        return []
-    df = pd.read_csv(HISTORY_FILE)
-    df = df.head(10)
-    return df.to_dict(orient="records")
-
-
 # ---------------- ROUTES ----------------
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -383,12 +448,15 @@ def index():
             generate_invoice_pdf(row, pdf_path)
             generated.append(pdf_path)
 
-        zip_path = os.path.join(OUTPUT_FOLDER, "Bills.zip")
+        zip_name = f"Bills_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_path = os.path.join(OUTPUT_FOLDER, zip_name)
+
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for p in generated:
                 zf.write(p, arcname=os.path.basename(p))
 
-        add_history_entry(file.filename, len(df))
+        # ✅ Save history to DB
+        add_history_entry_db(file.filename, df, zip_name)
 
         return send_file(zip_path, as_attachment=True)
 
@@ -397,12 +465,11 @@ def index():
 
 @app.route("/api/history", methods=["GET"])
 def api_history():
-    return jsonify(get_history())
+    return jsonify(get_history_db(10))
 
 
 @app.route("/download-template", methods=["GET"])
 def download_template():
-    # create template excel on the fly
     template_path = os.path.join(OUTPUT_FOLDER, "Excel_Template_STC.xlsx")
     df = pd.DataFrame(columns=REQUIRED_HEADERS)
     df.to_excel(template_path, index=False)
@@ -425,10 +492,8 @@ def preview():
     if missing:
         return jsonify({"ok": False, "error": f"Missing columns: {missing}"}), 400
 
-    # show first 10 rows only
     df2 = df.head(10).copy()
 
-    # compute total column for preview
     df2["TotalAmount"] = (
         df2["FreightAmt"].fillna(0).astype(float) +
         df2["ToPointCharges"].fillna(0).astype(float) +
@@ -444,6 +509,9 @@ def preview():
     })
 
 
+# ✅ init DB on start
+init_db()
+
 if __name__ == "__main__":
-    print("RUNNING APP VERSION: PORTAL-UI + PREVIEW + HISTORY + TEMPLATE")
+    print("RUNNING APP VERSION: PORTAL-UI + PREVIEW + HISTORY + TEMPLATE + DB")
     app.run(debug=True)
