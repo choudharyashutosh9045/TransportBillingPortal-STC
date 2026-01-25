@@ -215,7 +215,7 @@ def generate_invoice_pdf(row: dict, pdf_path: str):
     c.setFont("Helvetica-Bold", 10)
     c.drawCentredString(W / 2, H - TM - 22 * mm, "INVOICE")
 
-    # Logo (bigger + up)
+    # Logo (midium + up)
     logo_path = os.path.join(BASE_DIR, "logo.png")
     if os.path.exists(logo_path):
         try:
