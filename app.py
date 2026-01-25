@@ -220,8 +220,8 @@ def generate_invoice_pdf(row: dict, pdf_path: str):
     if os.path.exists(logo_path):
         try:
             img = ImageReader(logo_path)
-            logo_w = 65 * mm
-            logo_h = 33 * mm
+            logo_w = 60 * mm
+            logo_h = 30 * mm
             logo_x = LM + 4 * mm
             logo_y = H - TM - 40 * mm
             c.drawImage(img, logo_x, logo_y, width=logo_w, height=logo_h, mask="auto", preserveAspectRatio=True)
