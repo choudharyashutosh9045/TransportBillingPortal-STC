@@ -220,10 +220,10 @@ def generate_invoice_pdf(row: dict, pdf_path: str):
     if os.path.exists(logo_path):
         try:
             img = ImageReader(logo_path)
-            logo_w = 60 * mm
-            logo_h = 30 * mm
+            logo_w = 58 * mm
+            logo_h = 28 * mm
             logo_x = LM + 6 * mm
-            logo_y = H - TM - 40 * mm
+            logo_y = H - TM - 4 * mm
             c.drawImage(img, logo_x, logo_y, width=logo_w, height=logo_h, mask="auto", preserveAspectRatio=True)
         except Exception as e:
             print("LOGO ERROR:", e)
