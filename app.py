@@ -1,62 +1,67 @@
 import os
-import uuid
 import pandas as pd
 from flask import Flask, render_template, request, send_file
-from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
+from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
-from num2words import num2words
 from datetime import datetime
+from num2words import num2words
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "generated")
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
 # ---------------- FIXED DATA ----------------
+
 FIXED_PARTY = {}
-FIXED_STC_BANK = {}
+FIXED_STC_BANK = {
+    "PANNo": "BSSPG9414K",
+    "STCGSTIN": "05BSSPG9414K1ZA",
+    "STCStateCode": "5",
+    "AccountName": "South Transport Company",
+    "AccountNo": "364205500142",
+    "IFSCode": "ICIC0003642"
+}
 
 # ---------------- HELPERS ----------------
+
 def safe_str(v):
-    return "" if v is None or str(v).lower() == "nan" else str(v)
+    return "" if pd.isna(v) else str(v)
+
+def format_date(v):
+    if pd.isna(v) or v == "":
+        return ""
+    try:
+        return pd.to_datetime(v).strftime("%d %b %Y")
+    except:
+        return str(v)
 
 def money(v):
     try:
-        return f"{float(v):,.2f}"
+        return f"{float(v):.2f}"
     except:
         return "0.00"
 
-def format_date(v):
-    try:
-        return pd.to_datetime(v).strftime("%d-%m-%Y")
-    except:
-        return ""
+def calc_total(r):
+    return sum([
+        float(r.get("FreightAmt", 0) or 0),
+        float(r.get("ToPointCharges", 0) or 0),
+        float(r.get("UnloadingCharge", 0) or 0),
+        float(r.get("SourceDetention", 0) or 0),
+        float(r.get("DestinationDetention", 0) or 0),
+    ])
 
-def calc_total(row):
-    fields = [
-        "FreightAmt",
-        "ToPointCharges",
-        "UnloadingCharge",
-        "SourceDetention",
-        "DestinationDetention",
-    ]
-    total = 0
-    for f in fields:
-        try:
-            total += float(row.get(f, 0) or 0)
-        except:
-            pass
-    return total
+# ---------------- PDF GENERATOR (UNCHANGED FORMAT) ----------------
 
-# ---------------- PDF GENERATOR (UNCHANGED) ----------------
 def generate_invoice_pdf(row: dict, pdf_path: str):
     row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
+
     W, H = landscape(A4)
     c = canvas.Canvas(pdf_path, pagesize=(W, H))
 
@@ -75,40 +80,59 @@ def generate_invoice_pdf(row: dict, pdf_path: str):
 
     logo_path = os.path.join(BASE_DIR, "logo.png")
     if os.path.exists(logo_path):
-        img = ImageReader(logo_path)
-        c.drawImage(img, LM + 6 * mm, H - TM - 33 * mm, 58 * mm, 28 * mm, mask="auto")
+        c.drawImage(ImageReader(logo_path),
+                    LM + 6 * mm,
+                    H - TM - 33 * mm,
+                    width=58 * mm,
+                    height=28 * mm,
+                    mask="auto")
 
-    # ⚠️ FULL FUNCTION CONTINUES
-    # 👉 EXACT SAME AS YOU SENT
-    # 👉 NOTHING REMOVED / NOTHING ADDED
+    left_y = H - TM - 62 * mm
+    c.rect(LM + 2 * mm, left_y, 110 * mm, 28 * mm)
+
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(LM + 4 * mm, left_y + 20 * mm, "To,")
+    c.drawString(LM + 4 * mm, left_y + 15 * mm, safe_str(row["PartyName"]))
+    c.setFont("Helvetica", 7.5)
+    c.drawString(LM + 4 * mm, left_y + 10 * mm, safe_str(row["PartyAddress"]))
+    c.drawString(LM + 4 * mm, left_y + 6 * mm,
+                 f"{safe_str(row['PartyCity'])}, {safe_str(row['PartyState'])} {safe_str(row['PartyPincode'])}")
+    c.setFont("Helvetica-Bold", 7.5)
+    c.drawString(LM + 4 * mm, left_y + 2 * mm, f"GSTIN: {safe_str(row['PartyGSTIN'])}")
+
+    c.setFont("Helvetica", 7.5)
+    c.drawString(LM + 4 * mm, left_y - 5 * mm, f"From location: {safe_str(row['FromLocation'])}")
+
+    total = calc_total(row)
+    words = num2words(int(total), lang="en").title() + " Rupees Only"
+
+    c.drawString(LM + 4 * mm, BM + 35 * mm, "Total in words (Rs.) :")
+    c.drawString(LM + 45 * mm, BM + 35 * mm, words)
+    c.drawRightString(W - RM - 4 * mm, BM + 35 * mm, money(total))
 
     c.showPage()
     c.save()
 
 # ---------------- ROUTES ----------------
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        file = request.files.get("file")
-        if not file:
-            return "No file uploaded"
-
-        path = os.path.join(UPLOAD_DIR, file.filename)
-        file.save(path)
+        f = request.files["file"]
+        path = os.path.join(UPLOAD_FOLDER, f.filename)
+        f.save(path)
 
         df = pd.read_excel(path)
-        pdf_files = []
+        row = df.iloc[0].to_dict()
 
-        for _, row in df.iterrows():
-            pdf_name = f"invoice_{uuid.uuid4().hex}.pdf"
-            pdf_path = os.path.join(OUTPUT_DIR, pdf_name)
-            generate_invoice_pdf(row.to_dict(), pdf_path)
-            pdf_files.append(pdf_path)
+        pdf_name = f"{row['FreightBillNo']}_{row['LRNo']}.pdf"
+        pdf_path = os.path.join(OUTPUT_FOLDER, pdf_name)
 
-        return send_file(pdf_files[0], as_attachment=True)
+        generate_invoice_pdf(row, pdf_path)
+
+        return send_file(pdf_path, as_attachment=True)
 
     return render_template("index.html")
-
 
 if __name__ == "__main__":
     app.run(debug=True)
