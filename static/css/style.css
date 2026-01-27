@@ -1,57 +1,53 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #f4f6f9;
+  background: #f5f7fb;
 }
 
 .navbar {
-  background: #0b1f33;
+  background: #0a1f33;
+  padding: 14px 40px;
   color: white;
-  padding: 12px 24px;
-}
-
-.nav-left {
   display: flex;
   align-items: center;
-  gap: 10px;
 }
 
-.logo {
+.navbar img {
   height: 40px;
+  margin-right: 12px;
 }
 
 .main {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: calc(100vh - 64px);
+  height: calc(100vh - 80px);
 }
 
 .card {
   background: white;
-  padding: 30px 40px;
-  border-radius: 12px;
+  padding: 40px;
+  border-radius: 14px;
   width: 420px;
   text-align: center;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
 }
 
 .card h2 {
   margin-bottom: 8px;
 }
 
-.sub {
+.card .sub {
   color: #666;
   font-size: 14px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 button {
-  margin-top: 15px;
-  padding: 10px 22px;
-  background: #2563eb;
-  border: none;
+  background: #2f60ff;
   color: white;
+  border: none;
+  padding: 10px 22px;
   border-radius: 6px;
   cursor: pointer;
 }
