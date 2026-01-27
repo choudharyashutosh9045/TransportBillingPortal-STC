@@ -1,31 +1,48 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Transport Billing Portal</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+    <meta charset="UTF-8">
+    <title>Transport Billing Portal</title>
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
-<div class="navbar">
-  <div style="display:flex;gap:12px;align-items:center">
-    <img src="/static/logos/logo.png">
-    <h2>South Transport Company</h2>
-  </div>
+<!-- Top Header -->
+<div class="topbar">
+    <div class="brand">
+        <img src="/static/logos/logo.png" alt="Logo">
+        <div>
+            <h1>South Transport Company</h1>
+            <p>Billing & Invoice Portal</p>
+        </div>
+    </div>
 </div>
 
-<div class="container">
+<!-- Main Container -->
+<div class="page">
 
-  <div class="card">
-    <h3>Upload Excel</h3>
-    <form method="POST" enctype="multipart/form-data">
-      <div class="upload-box">
-        <input type="file" name="file" required>
-        <br><br>
-        <button class="btn">Generate Bills</button>
-      </div>
-    </form>
-  </div>
+    <div class="card">
+        <h2>Upload Excel File</h2>
+        <p class="subtitle">
+            Upload the billing Excel file to generate invoice PDFs
+        </p>
 
+        <form method="POST" enctype="multipart/form-data">
+            <div class="upload-area">
+                <input type="file" name="file" required>
+            </div>
+
+            <button type="submit" class="btn-primary">
+                Generate Bills (PDF)
+            </button>
+        </form>
+    </div>
+
+</div>
+
+<!-- Footer -->
+<div class="footer">
+    © 2026 South Transport Company
 </div>
 
 </body>
