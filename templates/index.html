@@ -1,43 +1,71 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>South Transport Company | Billing Portal</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login - STC Billing Portal</title>
+  <style>
+    body{
+      margin:0;
+      font-family: system-ui, Arial;
+      background:#0b1220;
+      color:#e5e7eb;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:100vh;
+    }
+    .box{
+      width:360px;
+      padding:24px;
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.15);
+      background:rgba(255,255,255,.04);
+    }
+    h2{margin:0 0 6px 0;}
+    p{margin:0 0 16px 0; color:#94a3b8; font-size:13px;}
+    input{
+      width:100%;
+      padding:12px;
+      margin:8px 0;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.15);
+      background:rgba(0,0,0,.25);
+      color:#fff;
+      outline:none;
+    }
+    button{
+      width:100%;
+      margin-top:10px;
+      padding:12px;
+      border:none;
+      border-radius:12px;
+      font-weight:800;
+      cursor:pointer;
+      background:linear-gradient(135deg,#38bdf8,#22c55e);
+      color:#06101f;
+    }
+    .err{
+      margin-top:10px;
+      color:#fb7185;
+      font-size:13px;
+    }
+  </style>
 </head>
+<body>
+  <div class="box">
+    <h2>STC Portal Login</h2>
+    <p>Enter username & password to generate bills.</p>
 
-<body style="margin:0; font-family: Arial, sans-serif; background:#f4f6f8;">
+    <form method="POST">
+      <input name="username" placeholder="Username" required />
+      <input name="password" placeholder="Password" type="password" required />
+      <button type="submit">Login</button>
+    </form>
 
-    <!-- HEADER -->
-    <div style="background:#0a1f33; color:white; padding:15px 30px; display:flex; align-items:center;">
-        <img src="/static/logos/logo.png" style="height:40px; margin-right:12px;">
-        <h3 style="margin:0;">South Transport Company</h3>
-    </div>
-
-    <!-- MAIN -->
-    <div style="display:flex; justify-content:center; align-items:center; height:85vh;">
-
-        <div style="background:white; padding:35px; width:420px; border-radius:12px;
-                    box-shadow:0 15px 30px rgba(0,0,0,0.12); text-align:center;">
-
-            <h2 style="margin-bottom:8px;">Upload Excel File</h2>
-
-            <p style="color:#666; font-size:14px; margin-bottom:25px;">
-                Upload billing Excel to generate invoice PDFs
-            </p>
-
-            <form method="POST" enctype="multipart/form-data">
-                <input type="file" name="file" required><br><br>
-
-                <button type="submit"
-                        style="background:#2f60ff; color:white; border:none;
-                               padding:10px 22px; border-radius:6px;
-                               font-size:14px; cursor:pointer;">
-                    Generate Bills
-                </button>
-            </form>
-
-        </div>
-    </div>
-
+    {% if error %}
+      <div class="err">{{ error }}</div>
+    {% endif %}
+  </div>
 </body>
 </html>
