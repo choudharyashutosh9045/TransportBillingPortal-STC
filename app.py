@@ -19,18 +19,15 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "output")
-TEMPLATE_FOLDER = os.path.join(BASE_DIR, "templates")
-DATA_FOLDER = os.path.join(BASE_DIR, "data")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(DATA_FOLDER, exist_ok=True)
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 
 # ==========================
-# ✅ FIXED DETAILS (SAME ALWAYS)
+# FIXED DETAILS
 # ==========================
 FIXED_PARTY = {
     "PartyName": "Grivaa Springs Private Ltd.",
@@ -50,7 +47,6 @@ FIXED_STC_BANK = {
     "IFSCode": "ICIC0003642",
 }
 
-# Excel headers required
 REQUIRED_HEADERS = [
     "FreightBillNo","InvoiceDate","DueDate","FromLocation",
     "ShipmentDate","LRNo","Destination","CNNumber","TruckNo","InvoiceNo",
@@ -67,25 +63,15 @@ def safe_str(v):
 
 def safe_float(v):
     try:
-        if pd.isna(v):
-            return 0.0
-        if str(v).strip() == "":
-            return 0.0
         return float(v)
     except:
         return 0.0
 
 def format_date(v):
-    s = safe_str(v)
-    if not s:
-        return ""
     try:
-        dt = pd.to_datetime(s, dayfirst=True, errors="coerce")
-        if pd.isna(dt):
-            return s
-        return dt.strftime("%d %b %Y")
+        return pd.to_datetime(v, dayfirst=True).strftime("%d %b %Y")
     except:
-        return s
+        return ""
 
 def money(v):
     return f"{safe_float(v):.2f}"
@@ -101,28 +87,23 @@ def calc_total(row):
 
 
 # ==========================
-# ✅ DATABASE (SAFE FIXED)
+# DATABASE (SAFE)
 # ==========================
 def get_db_conn():
     DATABASE_URL = os.environ.get("DATABASE_URL")
     if not DATABASE_URL:
-        print("⚠️ DATABASE_URL not set. DB disabled.")
         return None
 
     if DATABASE_URL.startswith("postgresql://"):
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgres://", 1)
 
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
-        return conn
-    except Exception as e:
-        print("❌ DB CONNECT ERROR:", e)
-        return None
+    return psycopg2.connect(DATABASE_URL)
 
 
 def init_db():
     conn = get_db_conn()
     if not conn:
+        print("⚠️ DATABASE_URL not set. DB disabled.")
         return
 
     with conn.cursor() as cur:
@@ -133,11 +114,8 @@ def init_db():
                 source_excel VARCHAR(255),
                 bill_no VARCHAR(100),
                 lr_no VARCHAR(100),
-                invoice_date VARCHAR(50),
-                due_date VARCHAR(50),
                 destination VARCHAR(200),
-                total_amount NUMERIC(12,2),
-                zip_name VARCHAR(255)
+                total_amount NUMERIC(12,2)
             );
         """)
         conn.commit()
@@ -146,56 +124,66 @@ def init_db():
     print("✅ DB ready")
 
 
-def add_history_entry_db(source_excel, df, zip_name):
-    conn = get_db_conn()
-    if not conn:
-        return
+# ---------------- PDF GENERATOR ----------------
+def generate_invoice_pdf(row: dict, pdf_path: str):
+    row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
 
-    with conn.cursor() as cur:
+    W, H = landscape(A4)
+    c = canvas.Canvas(pdf_path, pagesize=(W, H))
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(W/2, H-40, "SOUTH TRANSPORT COMPANY")
+
+    c.setFont("Helvetica", 9)
+    c.drawString(40, H-80, f"Freight Bill No: {safe_str(row.get('FreightBillNo'))}")
+    c.drawString(40, H-100, f"LR No: {safe_str(row.get('LRNo'))}")
+    c.drawString(40, H-120, f"Destination: {safe_str(row.get('Destination'))}")
+
+    total = calc_total(row)
+    c.drawString(40, H-160, f"Total Amount: Rs {money(total)}")
+
+    c.showPage()
+    c.save()
+
+
+# ---------------- ROUTES ----------------
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        file = request.files.get("file")
+        if not file:
+            return "No file uploaded", 400
+
+        path = os.path.join(UPLOAD_FOLDER, file.filename)
+        file.save(path)
+
+        df = pd.read_excel(path)
+        df.columns = [c.strip() for c in df.columns]
+
+        for h in REQUIRED_HEADERS:
+            if h not in df.columns:
+                return f"Missing column: {h}", 400
+
+        pdfs = []
         for _, r in df.iterrows():
             row = r.to_dict()
-            cur.execute("""
-                INSERT INTO bill_history
-                (source_excel, bill_no, lr_no, invoice_date, due_date, destination, total_amount, zip_name)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (
-                source_excel,
-                safe_str(row.get("FreightBillNo")),
-                safe_str(row.get("LRNo")),
-                format_date(row.get("InvoiceDate")),
-                format_date(row.get("DueDate")),
-                safe_str(row.get("Destination")),
-                float(calc_total(row)),
-                zip_name
-            ))
+            name = f"{safe_str(row.get('FreightBillNo'))}_{safe_str(row.get('LRNo'))}.pdf"
+            pdf_path = os.path.join(OUTPUT_FOLDER, name)
+            generate_invoice_pdf(row, pdf_path)
+            pdfs.append(pdf_path)
 
-        conn.commit()
+        zip_path = os.path.join(OUTPUT_FOLDER, "Bills.zip")
+        with zipfile.ZipFile(zip_path, "w") as z:
+            for p in pdfs:
+                z.write(p, arcname=os.path.basename(p))
 
-    conn.close()
+        return send_file(zip_path, as_attachment=True)
+
+    return render_template("index.html")
 
 
-def get_history_db(limit=10):
-    conn = get_db_conn()
-    if not conn:
-        return []
+# ---------------- START ----------------
+init_db()
 
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute("""
-            SELECT * FROM bill_history
-            ORDER BY created_at DESC
-            LIMIT %s
-        """, (limit,))
-        rows = cur.fetchall()
-
-    conn.close()
-
-    for r in rows:
-        if r.get("created_at"):
-            r["created_at"] = r["created_at"].strftime("%d %b %Y %I:%M %p")
-
-    return rows
-
-
-# ---------------- PDF GENERATOR ----------------
-# ❗❗❗ बिल्कुल वही है – कुछ भी change नहीं किया ❗❗❗
-# (PDF CODE AS IT IS)
+if __name__ == "__main__":
+    app.run(debug=True)
