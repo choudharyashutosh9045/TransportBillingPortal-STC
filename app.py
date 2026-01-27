@@ -143,29 +143,47 @@ def add_history_entry_db(source_excel, df, zip_name):
     conn.close()
 
 # ================= PDF GENERATOR =================
-# ⚠️ 100% SAME AS TERA CODE – NO CHANGE
 def generate_invoice_pdf(row: dict, pdf_path: str):
     row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
+
     W, H = landscape(A4)
     c = canvas.Canvas(pdf_path, pagesize=(W, H))
 
-    LM = RM = TM = BM = 10 * mm
+    LM = 10 * mm
+    RM = 10 * mm
+    TM = 10 * mm
+    BM = 10 * mm
 
+    # Outer Border
     c.setLineWidth(1)
     c.rect(LM, BM, W - LM - RM, H - TM - BM)
 
+    # Header
     c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(W / 2, H - TM - 8 * mm, "SOUTH TRANSPORT COMPANY")
+
     c.setFont("Helvetica", 8)
-    c.drawCentredString(W / 2, H - TM - 12 * mm, "Dehradun Road Near power Grid Bhagwanpur")
-    c.drawCentredString(W / 2, H - TM - 15 * mm, "Roorkee,Haridwar, U.K. 247661, India")
+    c.drawCentredString(W / 2, H - TM - 12 * mm,
+                         "Dehradun Road Near power Grid Bhagwanpur")
+    c.drawCentredString(W / 2, H - TM - 15 * mm,
+                         "Roorkee,Haridwar, U.K. 247661, India")
+
     c.setFont("Helvetica-Bold", 10)
     c.drawCentredString(W / 2, H - TM - 22 * mm, "INVOICE")
 
+    # Logo
     logo_path = os.path.join(BASE_DIR, "logo.png")
     if os.path.exists(logo_path):
         img = ImageReader(logo_path)
-        c.drawImage(img, LM + 6 * mm, H - TM - 33 * mm, 58 * mm, 28 * mm, mask="auto")
+        c.drawImage(
+            img,
+            LM + 6 * mm,
+            H - TM - 33 * mm,
+            width=58 * mm,
+            height=28 * mm,
+            mask="auto",
+            preserveAspectRatio=True
+        )
 
     c.showPage()
     c.save()
