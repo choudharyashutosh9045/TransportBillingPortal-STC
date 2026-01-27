@@ -1,35 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>South Transport Company | Billing Portal</title>
+  <meta charset="UTF-8">
+  <title>South Transport Company | Billing Portal</title>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- ✅ CORRECT WAY -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
 
-<!-- NAVBAR -->
-<div class="navbar">
+  <!-- NAVBAR -->
+  <div class="navbar">
     <div class="nav-left">
-        <img src="{{ url_for('static', filename='logos/logo.png') }}" class="logo">
-        <span>South Transport Company</span>
+      <img src="{{ url_for('static', filename='logos/logo.png') }}" class="logo">
+      <span>South Transport Company</span>
     </div>
-</div>
+  </div>
 
-<!-- MAIN -->
-<div class="main">
-
+  <!-- MAIN -->
+  <div class="main">
     <div class="card">
-        <h2>Upload Excel File</h2>
-        <p class="sub">Upload billing Excel to generate invoice PDFs</p>
+      <h2>Upload Excel File</h2>
+      <p class="sub">Upload billing Excel to generate invoice PDFs</p>
 
-        <form method="POST" enctype="multipart/form-data">
-            <input type="file" name="file" required>
-            <button type="submit">Generate Bills (PDF)</button>
-        </form>
+      <form method="POST" enctype="multipart/form-data">
+        <div class="upload-box">
+          <input type="file" name="file" required>
+          <button type="submit" class="btn-primary">
+            Generate Bills
+          </button>
+        </div>
+      </form>
     </div>
-
-</div>
+  </div>
 
 </body>
 </html>
