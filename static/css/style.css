@@ -6,7 +6,7 @@
 }
 
 body {
-  background: #f4f6f9;   /* red hata diya */
+  background: linear-gradient(135deg, #f4f6f9, #e2e8f0);
 }
 
 /* NAVBAR */
@@ -39,12 +39,18 @@ body {
 }
 
 .card {
-  background: #fff;
-  width: 600px;
-  padding: 40px;
-  border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-  text-align: center;
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .card h2 {
