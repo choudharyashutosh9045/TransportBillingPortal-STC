@@ -107,15 +107,15 @@ def now_ts():
 # ✅ DATABASE (PostgreSQL Render)
 # ==========================
 def get_db_conn():
-    DATABASE_URL = os.environ.get("DATABASE_URL")
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        return None
+    return psycopg2.connect(db_url, sslmode="require")
 
-if DATABASE_URL:
-    # Render gives postgresql:// but psycopg2 wants postgres://
-    if DATABASE_URL.startswith("postgresql://"):
-        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgres://", 1)
-    print("✅ DATABASE CONNECTED")
-else:
-    print("⚠️ DATABASE_URL not set. DB disabled.")
+def init_db():
+    conn = get_db_conn()
+    if not conn:
+        print("⚠️ DATABASE_URL not set. DB disabled.")
         return
 
     with conn.cursor() as cur:
