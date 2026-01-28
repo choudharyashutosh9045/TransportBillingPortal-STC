@@ -3,69 +3,508 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Login - STC Billing Portal</title>
+  <title>STC Transport Billing Portal</title>
   <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f172a;
+      --card:rgba(255,255,255,.04);
+      --border:rgba(255,255,255,.10);
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --accent:#22c55e;
+      --accent2:#38bdf8;
+      --shadow: 0 20px 60px rgba(0,0,0,.40);
+      --radius:22px;
+    }
+    *{box-sizing:border-box}
     body{
       margin:0;
-      font-family: system-ui, Arial;
-      background:#0b1220;
-      color:#e5e7eb;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 600px at 15% 0%, rgba(56,189,248,.18), transparent 55%),
+        radial-gradient(1000px 550px at 85% 10%, rgba(34,197,94,.15), transparent 60%),
+        var(--bg);
+      color:var(--text);
+      min-height:100vh;
+    }
+    .layout{
+      display:grid;
+      grid-template-columns: 280px 1fr;
+      min-height:100vh;
+    }
+    .sidebar{
+      padding:22px 18px;
+      border-right:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.03), transparent 70%);
+    }
+    .brand{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      padding:14px 14px;
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.03);
+      box-shadow: var(--shadow);
+    }
+    .brandIcon{
+      width:48px;height:48px;border-radius:16px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;
+      color:#07101f;
+      letter-spacing:.5px;
+    }
+    .brand h1{font-size:14px;margin:0;line-height:1.2;}
+    .brand p{margin:3px 0 0 0;font-size:12px;color:var(--muted);}
+    .nav{margin-top:18px;display:flex;flex-direction:column;gap:10px;}
+    .nav a{
+      text-decoration:none;color:var(--text);
+      padding:12px 14px;border-radius:16px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.02);
+      display:flex;align-items:center;gap:10px;
+      transition:.18s;
+    }
+    .nav a:hover{transform: translateY(-1px);background: rgba(255,255,255,.05);}
+    .chip{
+      margin-left:auto;font-size:11px;padding:4px 9px;border-radius:999px;
+      border:1px solid var(--border);background: rgba(255,255,255,.03);color:var(--muted);
+    }
+    .sideFooter{
+      margin-top:18px;padding:14px;border-radius: var(--radius);
+      border:1px solid var(--border);background: rgba(15,23,42,.45);
+      color:var(--muted);font-size:12px;line-height:1.4;
+    }
+
+    .main{padding:26px;}
+    .topbar{
+      display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;
+    }
+    .title h2{margin:0;font-size:22px;letter-spacing:.2px;}
+    .title p{margin:6px 0 0 0;color:var(--muted);font-size:13px;}
+
+    .topRight{
       display:flex;
       align-items:center;
-      justify-content:center;
-      height:100vh;
+      gap:12px;
     }
-    .box{
-      width:360px;
-      padding:24px;
-      border-radius:18px;
-      border:1px solid rgba(255,255,255,.15);
-      background:rgba(255,255,255,.04);
+
+    .search{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.03);
+      min-width:320px;
     }
-    h2{margin:0 0 6px 0;}
-    p{margin:0 0 16px 0; color:#94a3b8; font-size:13px;}
-    input{
+    .search input{
       width:100%;
-      padding:12px;
-      margin:8px 0;
-      border-radius:12px;
-      border:1px solid rgba(255,255,255,.15);
-      background:rgba(0,0,0,.25);
-      color:#fff;
-      outline:none;
-    }
-    button{
-      width:100%;
-      margin-top:10px;
-      padding:12px;
       border:none;
-      border-radius:12px;
-      font-weight:800;
-      cursor:pointer;
-      background:linear-gradient(135deg,#38bdf8,#22c55e);
-      color:#06101f;
-    }
-    .err{
-      margin-top:10px;
-      color:#fb7185;
+      outline:none;
+      background:transparent;
+      color:var(--text);
       font-size:13px;
+    }
+    .profile{
+      width:42px;height:42px;border-radius:16px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.03);
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;
+      color:var(--muted);
+    }
+
+    .grid{display:grid;grid-template-columns: 1.25fr .75fr;gap:18px;}
+    .card{
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.03);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .cardHead{padding:18px 18px 0 18px;}
+    .cardHead h3{margin:0;font-size:15px;letter-spacing:.2px;}
+    .cardHead p{margin:8px 0 0 0;font-size:12px;color:var(--muted);line-height:1.4;}
+    .cardBody{padding:18px;}
+
+    .btn{
+      cursor:pointer;border:none;border-radius:16px;padding:12px 14px;
+      font-weight:900;color:#06101f;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      transition:.18s;
+      box-shadow: 0 12px 40px rgba(34,197,94,.12);
+    }
+    .btn:hover{transform: translateY(-1px);}
+    .btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+    .btn2{
+      cursor:pointer;border:1px solid var(--border);border-radius:16px;padding:12px 14px;
+      font-weight:800;color:var(--text);background: rgba(255,255,255,.03);transition:.18s;
+    }
+    .btn2:hover{background: rgba(255,255,255,.06);}
+
+    .drop{
+      border:2px dashed rgba(56,189,248,.35);
+      border-radius: var(--radius);
+      padding:18px;
+      background: rgba(15,23,42,.55);
+      transition:.2s;
+    }
+    .drop.drag{
+      border-color: rgba(34,197,94,.60);
+      background: rgba(34,197,94,.07);
+    }
+    .row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+    .uploadTitle{font-weight:900;font-size:14px;}
+    .hint{margin-top:8px;color:var(--muted);font-size:12px;line-height:1.45;}
+    .btns{display:flex;gap:10px;align-items:center;}
+    input[type=file]{display:none;}
+    .fileName{margin-top:10px;font-size:12px;color:var(--muted);}
+
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;}
+    .stat{
+      padding:14px;border-radius:18px;border:1px solid var(--border);
+      background: rgba(15,23,42,.55);
+    }
+    .stat .k{color:var(--muted);font-size:12px;}
+    .stat .v{font-size:18px;font-weight:900;margin-top:6px;}
+
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:12px;color:rgba(229,231,235,.95);
+      white-space:pre-wrap;line-height:1.45;
+      background: rgba(15,23,42,.55);
+      border:1px solid var(--border);
+      padding:14px;border-radius:18px;
+    }
+
+    .tableWrap{
+      margin-top:14px;
+      border:1px solid var(--border);
+      border-radius:18px;
+      overflow:hidden;
+      background: rgba(15,23,42,.55);
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:12px;
+    }
+    th, td{
+      padding:10px 10px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      color:rgba(229,231,235,.92);
+      text-align:left;
+      vertical-align:top;
+    }
+    th{
+      font-size:11px;
+      color:var(--muted);
+      background: rgba(255,255,255,.02);
+    }
+    .miniNote{margin-top:12px;color:var(--muted);font-size:12px;line-height:1.45;}
+    .toast{
+      margin-top:12px;padding:12px 14px;border-radius:18px;
+      border:1px solid rgba(34,197,94,.35);
+      background: rgba(34,197,94,.08);
+      color: rgba(229,231,235,.95);
+      font-size:12px;display:none;
+    }
+
+    @media (max-width: 980px){
+      .layout{grid-template-columns:1fr;}
+      .sidebar{display:none;}
+      .grid{grid-template-columns:1fr;}
+      .search{min-width:100%;}
     }
   </style>
 </head>
+
 <body>
-  <div class="box">
-    <h2>STC Portal Login</h2>
-    <p>Enter username & password to generate bills.</p>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brandIcon">STC</div>
+        <div>
+          <h1>Transport Billing Portal</h1>
+          <p>Excel → PDF Bills (ZIP)</p>
+        </div>
+      </div>
 
-    <form method="POST">
-      <input name="username" placeholder="Username" required />
-      <input name="password" placeholder="Password" type="password" required />
-      <button type="submit">Login</button>
-    </form>
+      <nav class="nav">
+        <a href="#"><span>📄</span> Generate Bills <span class="chip">LIVE</span></a>
+        <a href="/download-template"><span>📥</span> Download Excel Template</a>
+        <a href="#"><span>🧾</span> Recent Bills</a>
+        <a href="#"><span>⚙️</span> Settings</a>
+      </nav>
 
-    {% if error %}
-      <div class="err">{{ error }}</div>
-    {% endif %}
+      <div class="sideFooter">
+        <b>Company:</b> South Transport Company<br/>
+        <b>Mode:</b> Non-GST • Per LR<br/>
+        <b>System:</b> Localhost (127.0.0.1)
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="title">
+          <h2>STC Billing Dashboard</h2>
+          <p>Preview Excel rows, then generate PDFs in one click.</p>
+        </div>
+
+        <div class="topRight">
+          <div class="search">
+            🔎 <input id="search" placeholder="Search LR / Truck / Invoice No..." />
+          </div>
+          <div class="profile">AK</div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <!-- LEFT: Upload -->
+        <section class="card">
+          <div class="cardHead">
+            <h3>Upload Excel & Generate Bills</h3>
+            <p>First preview rows → then generate Bills.zip</p>
+          </div>
+
+          <div class="cardBody">
+            <form id="form" action="/" method="POST" enctype="multipart/form-data">
+              <div id="drop" class="drop">
+                <div class="row">
+                  <div>
+                    <div class="uploadTitle">📌 Drag & Drop Excel Here</div>
+                    <div class="hint">Or click “Choose File”. Preview आएगा फिर Generate कर देना.</div>
+                  </div>
+
+                  <div class="btns">
+                    <label class="btn2" for="file">Choose File</label>
+                    <button id="previewBtn" class="btn2" type="button" disabled>Preview</button>
+                    <button id="genBtn" class="btn" type="submit" disabled>Generate Bills</button>
+                  </div>
+                </div>
+
+                <div id="fileName" class="fileName">No file selected</div>
+              </div>
+
+              <input id="file" name="file" type="file" accept=".xlsx,.xls" />
+            </form>
+
+            <div class="stats">
+              <div class="stat">
+                <div class="k">Output File</div>
+                <div class="v">Bills.zip</div>
+              </div>
+              <div class="stat">
+                <div class="k">Rows Detected</div>
+                <div id="rowsCount" class="v">0</div>
+              </div>
+            </div>
+
+            <div id="toast" class="toast">
+              ✅ File ready. Generating PDFs... Please wait.
+            </div>
+
+            <div class="miniNote">
+              ✔ Party details fixed in system (Excel में नहीं भरना)<br/>
+              ✔ Blank charges = 0 रखें
+            </div>
+
+            <div id="previewArea" style="display:none;">
+              <div class="miniNote" style="margin-top:14px;">
+                <b>Preview (Top 10 Rows)</b>
+              </div>
+
+              <div class="tableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>FreightBillNo</th>
+                      <th>LRNo</th>
+                      <th>TruckNo</th>
+                      <th>InvoiceNo</th>
+                      <th>Destination</th>
+                      <th>TotalAmount</th>
+                    </tr>
+                  </thead>
+                  <tbody id="previewTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT: Recent + Excel format -->
+        <section class="card">
+          <div class="cardHead">
+            <h3>Recent Generated Bills</h3>
+            <p>Last 10 uploads history</p>
+          </div>
+          <div class="cardBody">
+            <div id="history" class="mono">Loading...</div>
+
+            <div class="miniNote" style="margin-top:16px;">
+              <b>Excel Columns Format</b>
+            </div>
+            <div class="mono" style="margin-top:10px;">FreightBillNo,InvoiceDate,DueDate,FromLocation,
+ShipmentDate,LRNo,Destination,CNNumber,TruckNo,InvoiceNo,Pkgs,WeightKgs,DateArrival,DateDelivery,TruckType,
+FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</div>
+          </div>
+        </section>
+      </div>
+    </main>
   </div>
+
+  <script>
+    const fileInput = document.getElementById("file");
+    const fileName = document.getElementById("fileName");
+    const genBtn = document.getElementById("genBtn");
+    const previewBtn = document.getElementById("previewBtn");
+    const drop = document.getElementById("drop");
+    const toast = document.getElementById("toast");
+    const rowsCount = document.getElementById("rowsCount");
+    const previewArea = document.getElementById("previewArea");
+    const previewTable = document.getElementById("previewTable");
+    const historyBox = document.getElementById("history");
+    const searchInput = document.getElementById("search");
+
+    let previewRows = [];
+
+    function setFileName(){
+      if(fileInput.files && fileInput.files.length > 0){
+        fileName.textContent = "Selected: " + fileInput.files[0].name;
+        genBtn.disabled = false;
+        previewBtn.disabled = false;
+      } else {
+        fileName.textContent = "No file selected";
+        genBtn.disabled = true;
+        previewBtn.disabled = true;
+      }
+    }
+
+    fileInput.addEventListener("change", setFileName);
+
+    document.getElementById("form").addEventListener("submit", ()=>{
+      toast.style.display = "block";
+      genBtn.disabled = true;
+      genBtn.textContent = "Generating...";
+    });
+
+    // Drag-drop
+    ["dragenter","dragover"].forEach(ev=>{
+      drop.addEventListener(ev, e=>{
+        e.preventDefault();
+        e.stopPropagation();
+        drop.classList.add("drag");
+      });
+    });
+
+    ["dragleave","drop"].forEach(ev=>{
+      drop.addEventListener(ev, e=>{
+        e.preventDefault();
+        e.stopPropagation();
+        drop.classList.remove("drag");
+      });
+    });
+
+    drop.addEventListener("drop", (e)=>{
+      const files = e.dataTransfer.files;
+      if(files && files.length > 0){
+        fileInput.files = files;
+        setFileName();
+      }
+    });
+
+    // Load history
+    async function loadHistory(){
+      try{
+        const res = await fetch("/api/history");
+        const data = await res.json();
+        if(!data || data.length === 0){
+          historyBox.textContent = "No history yet.";
+          return;
+        }
+        let out = "";
+        data.forEach((h, i)=>{
+          out += `${i+1}. ${h.time}  |  ${h.file}  |  Rows: ${h.rows}\n`;
+        });
+        historyBox.textContent = out;
+      }catch(e){
+        historyBox.textContent = "History load failed.";
+      }
+    }
+    loadHistory();
+
+    // Preview button
+    previewBtn.addEventListener("click", async ()=>{
+      if(!fileInput.files || fileInput.files.length === 0) return;
+
+      previewBtn.disabled = true;
+      previewBtn.textContent = "Loading...";
+
+      const fd = new FormData();
+      fd.append("file", fileInput.files[0]);
+
+      try{
+        const res = await fetch("/preview", { method:"POST", body: fd });
+        const data = await res.json();
+
+        if(!data.ok){
+          alert(data.error || "Preview failed");
+          previewBtn.disabled = false;
+          previewBtn.textContent = "Preview";
+          return;
+        }
+
+        rowsCount.textContent = data.count;
+        previewRows = data.rows || [];
+        renderPreview(previewRows);
+
+        previewArea.style.display = "block";
+      }catch(e){
+        alert("Preview error");
+      }finally{
+        previewBtn.disabled = false;
+        previewBtn.textContent = "Preview";
+      }
+    });
+
+    function renderPreview(rows){
+      previewTable.innerHTML = "";
+      rows.forEach(r=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.FreightBillNo || ""}</td>
+          <td>${r.LRNo || ""}</td>
+          <td>${r.TruckNo || ""}</td>
+          <td>${r.InvoiceNo || ""}</td>
+          <td>${r.Destination || ""}</td>
+          <td>${r.TotalAmount || ""}</td>
+        `;
+        previewTable.appendChild(tr);
+      });
+    }
+
+    // Search in preview table
+    searchInput.addEventListener("input", ()=>{
+      const q = (searchInput.value || "").toLowerCase().trim();
+      if(!q){
+        renderPreview(previewRows);
+        return;
+      }
+      const filtered = previewRows.filter(r=>{
+        return (
+          String(r.LRNo || "").toLowerCase().includes(q) ||
+          String(r.TruckNo || "").toLowerCase().includes(q) ||
+          String(r.InvoiceNo || "").toLowerCase().includes(q) ||
+          String(r.Destination || "").toLowerCase().includes(q)
+        );
+      });
+      renderPreview(filtered);
+    });
+  </script>
 </body>
 </html>
