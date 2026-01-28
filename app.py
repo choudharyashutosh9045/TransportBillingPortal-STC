@@ -223,7 +223,7 @@ def generate_invoice_pdf(row: dict, pdf_path: str):
             logo_w = 60 * mm
             logo_h = 33 * mm
             logo_x = LM + 4 * mm
-            logo_y = H - TM - 45 * mm
+            logo_y = H - TM - 48 * mm
             c.drawImage(img, logo_x, logo_y, width=logo_w, height=logo_h, mask="auto", preserveAspectRatio=True)
         except Exception as e:
             print("LOGO ERROR:", e)
