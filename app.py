@@ -33,10 +33,11 @@ def wrap_text(c, text, x, y, width, leading=9):
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        if "excel" not in request.files:
+        # FIXED: Changed "excel" to "file" to match HTML form
+        if "file" not in request.files:
             return "No file uploaded", 400
 
-        file = request.files["excel"]
+        file = request.files["file"]
         if file.filename == "":
             return "No file selected", 400
 
