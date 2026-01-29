@@ -29,7 +29,6 @@ def draw_wrapped_text(c, text, x, y, max_width, leading=9):
         c.drawString(x, y, line)
     return y
 
-
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
@@ -51,7 +50,6 @@ def index():
         return send_file(pdf, as_attachment=True)
 
     return render_template("index.html")
-
 
 
 def generate_invoice_pdf(df):
@@ -195,7 +193,6 @@ def generate_invoice_pdf(df):
 
     c.save()
     return pdf_file
-
 
 if __name__ == "__main__":
     app.run(debug=True)
