@@ -10,6 +10,7 @@ from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import re
 
 app = Flask(__name__)
 
@@ -44,9 +45,10 @@ FIXED_STC_BANK = {
 
 REQUIRED_HEADERS = [
     "FreightBillNo","InvoiceDate","DueDate","FromLocation",
-    "ShipmentDate","LRNo","Destination","CNNumber","TruckNo","InvoiceNo",
-    "Pkgs","WeightKgs","DateArrival","DateDelivery","TruckType",
-    "FreightAmt","ToPointCharges","UnloadingCharge","SourceDetention","DestinationDetention"
+    "ShipmentDate","LRNo","Destination","CNNumber","TruckNo",
+    "InvoiceNo","Pkgs","WeightKgs","DateArrival","DateDelivery",
+    "TruckType","FreightAmt","ToPointCharges","UnloadingCharge",
+    "SourceDetention","DestinationDetention"
 ]
 
 def safe_str(v):
@@ -63,13 +65,16 @@ def safe_float(v):
         return 0.0
 
 def format_date(v):
+    s = safe_str(v)
+    if not s:
+        return ""
     try:
-        dt = pd.to_datetime(v, dayfirst=True, errors="coerce")
+        dt = pd.to_datetime(s, dayfirst=True, errors="coerce")
         if pd.isna(dt):
-            return safe_str(v)
+            return s
         return dt.strftime("%d %b %Y")
     except:
-        return safe_str(v)
+        return s
 
 def money(v):
     return f"{safe_float(v):.2f}"
@@ -83,6 +88,11 @@ def calc_total(row):
         safe_float(row.get("DestinationDetention"))
     )
 
+def clean_filename(v):
+    v = safe_str(v)
+    v = re.sub(r'[\\/:*?"<>|]', '_', v)
+    return v if v else "NA"
+
 def get_db_conn():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -93,71 +103,101 @@ def init_db():
     conn = get_db_conn()
     if not conn:
         return
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS bill_history (
-            id SERIAL PRIMARY KEY,
-            created_at TIMESTAMP DEFAULT NOW(),
-            source_excel VARCHAR(255),
-            bill_no VARCHAR(100),
-            lr_no VARCHAR(100),
-            invoice_date VARCHAR(50),
-            due_date VARCHAR(50),
-            destination VARCHAR(200),
-            total_amount NUMERIC(12,2),
-            zip_name VARCHAR(255)
-        )
-    """)
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS bill_history (
+                id SERIAL PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT NOW(),
+                source_excel VARCHAR(255),
+                bill_no VARCHAR(100),
+                lr_no VARCHAR(100),
+                invoice_date VARCHAR(50),
+                due_date VARCHAR(50),
+                destination VARCHAR(200),
+                total_amount NUMERIC(12,2),
+                zip_name VARCHAR(255)
+            );
+        """)
     conn.commit()
-    cur.close()
     conn.close()
 
 def add_history_entry_db(source_excel, df, zip_name):
     conn = get_db_conn()
     if not conn:
         return
-    cur = conn.cursor()
-    for _, r in df.iterrows():
-        row = r.to_dict()
-        cur.execute("""
-            INSERT INTO bill_history
-            (source_excel,bill_no,lr_no,invoice_date,due_date,destination,total_amount,zip_name)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-        """, (
-            source_excel,
-            safe_str(row.get("FreightBillNo")),
-            safe_str(row.get("LRNo")),
-            format_date(row.get("InvoiceDate")),
-            format_date(row.get("DueDate")),
-            safe_str(row.get("Destination")),
-            calc_total(row),
-            zip_name
-        ))
+    with conn.cursor() as cur:
+        for _, r in df.iterrows():
+            row = r.to_dict()
+            cur.execute("""
+                INSERT INTO bill_history
+                (source_excel,bill_no,lr_no,invoice_date,due_date,destination,total_amount,zip_name)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (
+                source_excel,
+                safe_str(row.get("FreightBillNo")),
+                safe_str(row.get("LRNo")),
+                format_date(row.get("InvoiceDate")),
+                format_date(row.get("DueDate")),
+                safe_str(row.get("Destination")),
+                calc_total(row),
+                zip_name
+            ))
     conn.commit()
-    cur.close()
     conn.close()
+
+def get_history_db(limit=10):
+    conn = get_db_conn()
+    if not conn:
+        return []
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("""
+            SELECT * FROM bill_history
+            ORDER BY created_at DESC LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+    conn.close()
+    for r in rows:
+        r["created_at"] = r["created_at"].strftime("%d %b %Y %I:%M %p")
+    return rows
 
 def generate_invoice_pdf(row, pdf_path):
     row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
+    os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+
     W, H = landscape(A4)
     c = canvas.Canvas(pdf_path, pagesize=(W, H))
-    LM = RM = TM = BM = 10 * mm
 
+    LM = RM = TM = BM = 10 * mm
     c.setLineWidth(1)
     c.rect(LM, BM, W - LM - RM, H - TM - BM)
 
     c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(W/2, H - TM - 8*mm, "SOUTH TRANSPORT COMPANY")
+    c.drawCentredString(W/2, H-18, "SOUTH TRANSPORT COMPANY")
     c.setFont("Helvetica", 8)
-    c.drawCentredString(W/2, H - TM - 12*mm, "Dehradun Road Near power Grid Bhagwanpur")
-    c.drawCentredString(W/2, H - TM - 15*mm, "Roorkee,Haridwar, U.K. 247661, India")
+    c.drawCentredString(W/2, H-30, "Dehradun Road Near power Grid Bhagwanpur")
+    c.drawCentredString(W/2, H-40, "Roorkee,Haridwar, U.K. 247661, India")
     c.setFont("Helvetica-Bold", 10)
-    c.drawCentredString(W/2, H - TM - 22*mm, "INVOICE")
+    c.drawCentredString(W/2, H-55, "INVOICE")
 
-    logo = os.path.join(BASE_DIR, "logo.png")
-    if os.path.exists(logo):
-        img = ImageReader(logo)
-        c.drawImage(img, LM + 6*mm, H - TM - 36*mm, 75*mm, 38*mm, mask="auto")
+    logo_path = os.path.join(BASE_DIR, "logo.png")
+    if os.path.exists(logo_path):
+        img = ImageReader(logo_path)
+        c.drawImage(img, LM+5, H-95, 200, 70, mask="auto")
+
+    c.setFont("Helvetica", 7)
+    c.drawString(LM+5, H-130, "To,")
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(LM+5, H-145, row["PartyName"])
+    c.setFont("Helvetica", 7)
+    c.drawString(LM+5, H-158, row["PartyAddress"])
+    c.drawString(LM+5, H-170, f"{row['PartyCity']} {row['PartyState']} {row['PartyPincode']}")
+    c.setFont("Helvetica-Bold", 7)
+    c.drawString(LM+5, H-183, f"GSTIN: {row['PartyGSTIN']}")
+
+    c.setFont("Helvetica", 7)
+    c.drawRightString(W-50, H-145, f"Freight Bill No: {safe_str(row.get('FreightBillNo'))}")
+    c.drawRightString(W-50, H-160, f"Invoice Date: {format_date(row.get('InvoiceDate'))}")
+    c.drawRightString(W-50, H-175, f"Due Date: {format_date(row.get('DueDate'))}")
 
     c.showPage()
     c.save()
@@ -168,26 +208,34 @@ def index():
         file = request.files.get("file")
         if not file:
             return "No file", 400
+
         path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(path)
+
         df = pd.read_excel(path)
         df.columns = [str(c).strip() for c in df.columns]
+
         missing = [h for h in REQUIRED_HEADERS if h not in df.columns]
         if missing:
             return f"Missing columns {missing}", 400
 
-        pdfs = []
+        generated = []
+
         for _, r in df.iterrows():
             row = r.to_dict()
-            name = f"{safe_str(row.get('FreightBillNo'))}_{safe_str(row.get('LRNo'))}_{datetime.now().strftime('%H%M%S')}.pdf"
-            out = os.path.join(OUTPUT_FOLDER, name)
-            generate_invoice_pdf(row, out)
-            pdfs.append(out)
+            bill = clean_filename(row.get("FreightBillNo"))
+            lr = clean_filename(row.get("LRNo"))
+            ts = datetime.now().strftime("%H%M%S")
+            pdf_name = f"{bill}_{lr}_{ts}.pdf"
+            pdf_path = os.path.join(OUTPUT_FOLDER, pdf_name)
+            generate_invoice_pdf(row, pdf_path)
+            generated.append(pdf_path)
 
-        zip_name = f"Bills_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_name = f"BILLS_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
         zip_path = os.path.join(OUTPUT_FOLDER, zip_name)
-        with zipfile.ZipFile(zip_path,"w") as z:
-            for p in pdfs:
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+            for p in generated:
                 z.write(p, os.path.basename(p))
 
         add_history_entry_db(file.filename, df, zip_name)
@@ -197,15 +245,7 @@ def index():
 
 @app.route("/api/history")
 def history():
-    conn = get_db_conn()
-    if not conn:
-        return jsonify([])
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT * FROM bill_history ORDER BY created_at DESC LIMIT 10")
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return jsonify(rows)
+    return jsonify(get_history_db())
 
 init_db()
 
