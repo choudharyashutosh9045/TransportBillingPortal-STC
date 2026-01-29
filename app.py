@@ -194,25 +194,45 @@ def generate_pdf(df):
     c.setFont("Helvetica", 9)
     c.drawString(30, box_top - 125, f"From location: {df.iloc[0]['FromLocation']}")
 
-    # ================= TABLE (FIXED - PROPER MARGINS) =================
+    # ================= TABLE (OPTIMIZED COLUMN WIDTHS) =================
     table_top = box_top - 155
     table_left = 30  # Left margin
     table_right = width - 30  # Right margin
-    table_width = table_right - table_left  # Total available width
+    table_width = table_right - table_left  # Total available width = ~812 points
     
     # Table headers
     headers = [
-        "S.\nno.", "Shipment\nDate", "LR No.", "Destination", "CN\nNumber",
+        "S.\nno.", "Shipment\nDate", "LR\nNo.", "Destination", "CN\nNumber",
         "Truck No", "Invoice No", "Pkgs", "Weight\n(Kgs)", "Date of\nArrival",
         "Date of\nDelivery", "Truck\nType", "Freight\nAmt (Rs.)", "To Point\nCharges(Rs.)",
         "Unloading\nCharge (Rs.)", "Source\nDetention\n(Rs.)", "Destination\nDetention\n(Rs.)",
         "Total\nAmount (Rs.)"
     ]
     
-    # Column widths - FIXED to fit exactly within borders
-    col_widths = [23, 40, 30, 46, 30, 43, 60, 26, 36, 40, 40, 40, 46, 46, 46, 46, 50, 50]
+    # OPTIMIZED Column widths - Better space distribution
+    # Total should be ~812 to fit border to border with equal margins
+    col_widths = [
+        25,   # 0: S.no
+        48,   # 1: Shipment Date (increased)
+        28,   # 2: LR No
+        52,   # 3: Destination (increased)
+        32,   # 4: CN Number
+        48,   # 5: Truck No (increased)
+        85,   # 6: Invoice No (INCREASED significantly - was 60, now 85)
+        28,   # 7: Pkgs
+        40,   # 8: Weight (increased)
+        48,   # 9: Date Arrival (increased)
+        48,   # 10: Date Delivery (increased)
+        48,   # 11: Truck Type (increased for wrapping)
+        52,   # 12: Freight Amt (increased)
+        52,   # 13: To Point Charges (increased)
+        52,   # 14: Unloading (increased)
+        52,   # 15: Source Detention (increased)
+        52,   # 16: Destination Detention (increased)
+        62    # 17: Total Amount (increased from end)
+    ]
     
-    # Verify total width fits
+    # Verify total width
     total_col_width = sum(col_widths)
     print(f"Table width: {total_col_width}, Available: {table_width}")
     
@@ -240,7 +260,7 @@ def generate_pdf(df):
         x += width_val
     c.line(x, table_top, x, table_top - 30)  # Last line
     
-    # ================= TABLE DATA (FIXED WRAPPING) =================
+    # ================= TABLE DATA =================
     c.setFont("Helvetica", 7)
     y = table_top - 30
     total_amount = 0
@@ -281,16 +301,17 @@ def generate_pdf(df):
             f"{row_total:.2f}"  # 17: Total
         ]
         
-        # Columns that need wrapping
-        wrap_columns = [6, 11]  # Invoice No and Truck Type
+        # Columns that need wrapping - Invoice No (6) and Truck Type (11)
+        wrap_columns = [6, 11]
         
         # Draw row
         x = table_left
         for i, val in enumerate(values):
             if i in wrap_columns:
-                # Use proper wrapping with padding
+                # Use proper wrapping with more padding for Invoice No
+                padding = 8 if i == 6 else 6  # More padding for Invoice No
                 draw_wrapped_text(c, val, x + col_widths[i]/2, y + row_height/2, 
-                                col_widths[i] - 6, "Helvetica", 7, 8)
+                                col_widths[i] - padding, "Helvetica", 7, 8)
             else:
                 c.drawCentredString(x + col_widths[i]/2, y + row_height/2, val)
             x += col_widths[i]
