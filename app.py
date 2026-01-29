@@ -1,3 +1,65 @@
+from flask import Flask, render_template, request, send_file, jsonify
+import os
+import pandas as pd
+from datetime import datetime
+from num2words import num2words
+import zipfile
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
+
+app = Flask(__name__)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "output")
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+FIXED_PARTY = {
+    "PartyName": "Grivaa Springs Private Ltd.",
+    "PartyAddress": "Khasra no 135, Tansipur, Roorkee",
+    "PartyCity": "Roorkee",
+    "PartyState": "Uttarakhand",
+    "PartyPincode": "247656",
+    "PartyGSTIN": "05AAICG4793P1ZV",
+}
+
+FIXED_STC_BANK = {
+    "PANNo": "BSSPG9414K",
+    "STCGSTIN": "05BSSPG9414K1ZA",
+    "STCStateCode": "5",
+    "AccountName": "South Transport Company",
+    "AccountNo": "364205500142",
+    "IFSCode": "ICIC0003642",
+}
+
+REQUIRED_HEADERS = [
+    "FreightBillNo","InvoiceDate","DueDate","FromLocation","ShipmentDate",
+    "LRNo","Destination","CNNumber","TruckNo","InvoiceNo","Pkgs","WeightKgs",
+    "DateArrival","DateDelivery","TruckType","FreightAmt","ToPointCharges",
+    "UnloadingCharge","SourceDetention","DestinationDetention"
+]
+
+def safe(v):
+    if pd.isna(v):
+        return ""
+    return str(v)
+
+def fdate(v):
+    try:
+        return pd.to_datetime(v).strftime("%d %b %Y")
+    except:
+        return ""
+
+def fnum(v):
+    try:
+        return float(v)
+    except:
+        return 0.0
+
 import os
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
@@ -228,6 +290,7 @@ def generate_invoice_pdf(row, pdf_path):
 
     c.showPage()
     c.save()
+
 
 @app.route("/", methods=["POST"])
 def upload():
