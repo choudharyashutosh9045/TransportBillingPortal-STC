@@ -67,11 +67,12 @@ def index():
 
 
 def generate_pdf(df):
-    # Convert string dates to datetime if needed
+    # Convert dates to datetime if they're not already
     date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate', 'DateArrival', 'DateDelivery']
     for col in date_columns:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], format='%d-%m-%Y', errors='coerce')
+            # Use coerce to handle any format automatically
+            df[col] = pd.to_datetime(df[col], errors='coerce')
     
     bill_no = str(df.iloc[0]["FreightBillNo"]).replace("/", "_")
     pdf_path = f"{OUTPUT_FOLDER}/{bill_no}.pdf"
