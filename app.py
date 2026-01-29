@@ -279,7 +279,7 @@ def generate_pdf(df):
     ]
     
     # Draw bank table
-    row_height = 18
+    row_height = 13
     
     c.setFont("Helvetica", 7)
     for i, (label, value) in enumerate(bank_details):
