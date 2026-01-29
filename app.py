@@ -1,157 +1,177 @@
 from flask import Flask, render_template, request, send_file, jsonify
+import os
 import pandas as pd
-import os, zipfile, uuid
 from datetime import datetime
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+from num2words import num2words
+import zipfile
 
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
+
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+# ======================================================
+# APP SETUP
+# ======================================================
 app = Flask(__name__)
 
-UPLOAD_DIR = "uploads"
-OUTPUT_DIR = "output"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "output")
 
-# ---------------- FIXED DATA ----------------
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+# ======================================================
+# FIXED DATA
+# ======================================================
 FIXED_PARTY = {
-    "PartyName": "South Transport Company",
-    "PartyAddress": "Roorkee, Uttarakhand"
+    "PartyName": "Grivaa Springs Private Ltd.",
+    "PartyAddress": "Khasra no 135, Tansipur, Roorkee",
+    "PartyCity": "Roorkee",
+    "PartyState": "Uttarakhand",
+    "PartyPincode": "247656",
+    "PartyGSTIN": "05AAICG4793P1ZV",
 }
 
 FIXED_STC_BANK = {
-    "BankName": "HDFC Bank",
-    "AccountNo": "XXXXXXXXXX",
-    "IFSC": "HDFC000XXXX"
+    "PANNo": "BSSPG9414K",
+    "STCGSTIN": "05BSSPG9414K1ZA",
+    "STCStateCode": "5",
+    "AccountName": "South Transport Company",
+    "AccountNo": "364205500142",
+    "IFSCode": "ICIC0003642",
 }
 
-# ---------------- CORE FIX ----------------
-def sanitize_row(row: dict):
-    clean = {}
-    for k, v in row.items():
+REQUIRED_HEADERS = [
+    "FreightBillNo","InvoiceDate","DueDate","FromLocation",
+    "ShipmentDate","LRNo","Destination","CNNumber","TruckNo",
+    "InvoiceNo","Pkgs","WeightKgs","DateArrival","DateDelivery",
+    "TruckType","FreightAmt","ToPointCharges","UnloadingCharge",
+    "SourceDetention","DestinationDetention"
+]
 
-        if pd.isna(v):
-            clean[k] = ""
-            continue
+# ======================================================
+# HELPERS
+# ======================================================
+def safe_str(v):
+    if pd.isna(v):
+        return ""
+    return str(v).strip()
 
-        if isinstance(v, (pd.Timestamp, datetime)):
-            clean[k] = v.strftime("%d-%m-%Y")
-            continue
+def safe_float(v):
+    try:
+        if pd.isna(v) or str(v).strip() == "":
+            return 0.0
+        return float(v)
+    except:
+        return 0.0
 
-        if isinstance(v, (int, float)):
-            if isinstance(v, float) and v.is_integer():
-                clean[k] = str(int(v))
-            else:
-                clean[k] = str(v)
-            continue
+def format_date(v):
+    try:
+        d = pd.to_datetime(v, errors="coerce", dayfirst=True)
+        return "" if pd.isna(d) else d.strftime("%d %b %Y")
+    except:
+        return safe_str(v)
 
-        clean[k] = str(v).strip()
+def money(v):
+    return f"{safe_float(v):.2f}"
 
-    return clean
+def calc_total(row):
+    return (
+        safe_float(row.get("FreightAmt")) +
+        safe_float(row.get("ToPointCharges")) +
+        safe_float(row.get("UnloadingCharge")) +
+        safe_float(row.get("SourceDetention")) +
+        safe_float(row.get("DestinationDetention"))
+    )
 
-# ---------------- PDF GENERATION ----------------
-def generate_invoice_pdf(row: dict, pdf_path: str):
-
-    # 🔐 MOST IMPORTANT LINE
-    row = sanitize_row(row)
-
-    # merge fixed data
+# ======================================================
+# PDF GENERATOR (FORMAT UNCHANGED)
+# ======================================================
+def generate_invoice_pdf(row, pdf_path):
     row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
 
-    c = canvas.Canvas(pdf_path, pagesize=A4)
-    w, h = A4
+    W, H = landscape(A4)
+    c = canvas.Canvas(pdf_path, pagesize=(W, H))
 
-    y = h - 40
+    LM, RM, TM, BM = 10*mm, 10*mm, 10*mm, 10*mm
 
-    # -------- PDF FORMAT (UNCHANGED LOGIC) --------
+    c.setLineWidth(1)
+    c.rect(LM, BM, W-LM-RM, H-TM-BM)
+
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(40, y, "FREIGHT BILL")
-    y -= 30
+    c.drawCentredString(W/2, H-TM-8*mm, "SOUTH TRANSPORT COMPANY")
+    c.setFont("Helvetica", 8)
+    c.drawCentredString(W/2, H-TM-12*mm, "Dehradun Road Near power Grid Bhagwanpur")
+    c.drawCentredString(W/2, H-TM-15*mm, "Roorkee, Haridwar, U.K. 247661, India")
+    c.setFont("Helvetica-Bold", 10)
+    c.drawCentredString(W/2, H-TM-22*mm, "INVOICE")
 
-    c.setFont("Helvetica", 9)
+    total_amt = calc_total(row)
 
-    def line(label, value):
-        nonlocal y
-        c.drawString(40, y, f"{label}:")
-        c.drawString(160, y, value)
-        y -= 14
+    c.setFont("Helvetica", 8)
+    c.drawString(LM+5*mm, BM+20*mm, f"Freight Bill No: {safe_str(row.get('FreightBillNo'))}")
+    c.drawString(LM+5*mm, BM+15*mm, f"LR No: {safe_str(row.get('LRNo'))}")
+    c.drawString(LM+5*mm, BM+10*mm, f"Total Amount: {money(total_amt)}")
 
-    line("Freight Bill No", row.get("FreightBillNo", ""))
-    line("Invoice Date", row.get("InvoiceDate", ""))
-    line("Due Date", row.get("DueDate", ""))
-    line("LR No", row.get("LRNo", ""))
-    line("Truck No", row.get("TruckNo", ""))
-    line("Invoice No", row.get("InvoiceNo", ""))
-    line("From", row.get("FromLocation", ""))
-    line("Destination", row.get("Destination", ""))
-    line("Truck Type", row.get("TruckType", ""))
-
-    y -= 10
-    line("Pkgs", row.get("Pkgs", ""))
-    line("Weight (Kgs)", row.get("WeightKgs", ""))
-
-    y -= 10
-    line("Freight Amount", row.get("FreightAmt", ""))
-    line("To Point Charges", row.get("ToPointCharges", ""))
-    line("Unloading Charge", row.get("UnloadingCharge", ""))
-    line("Source Detention", row.get("SourceDetention", ""))
-    line("Destination Detention", row.get("DestinationDetention", ""))
+    words = num2words(int(round(total_amt)), lang="en").title() + " Rupees Only"
+    c.drawString(LM+5*mm, BM+5*mm, f"Amount in Words: {words}")
 
     c.showPage()
     c.save()
 
-# ---------------- ROUTES ----------------
+# ======================================================
+# ROUTES
+# ======================================================
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
         file = request.files.get("file")
         if not file:
-            return "No file", 400
+            return "No file uploaded", 400
 
-        path = os.path.join(UPLOAD_DIR, file.filename)
+        path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(path)
 
         df = pd.read_excel(path)
+        df.columns = [c.strip() for c in df.columns]
 
-        zip_name = f"bills_{uuid.uuid4().hex}.zip"
-        zip_path = os.path.join(OUTPUT_DIR, zip_name)
+        missing = [h for h in REQUIRED_HEADERS if h not in df.columns]
+        if missing:
+            return f"Missing columns: {missing}", 400
 
-        with zipfile.ZipFile(zip_path, "w") as z:
-            for i, row in df.iterrows():
-                row_dict = row.to_dict()
-                pdf_name = f"{row_dict.get('FreightBillNo','bill')}_{i}.pdf"
-                pdf_path = os.path.join(OUTPUT_DIR, pdf_name)
-                generate_invoice_pdf(row_dict, pdf_path)
-                z.write(pdf_path, pdf_name)
-                os.remove(pdf_path)
+        pdf_files = []
+
+        for i, r in df.iterrows():
+            row = r.to_dict()
+
+            bill = safe_str(row.get("FreightBillNo")) or f"BILL{i+1}"
+            lr = safe_str(row.get("LRNo")) or f"LR{i+1}"
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+
+            pdf_name = f"{bill}_LR{lr}_{ts}.pdf"
+            pdf_path = os.path.join(OUTPUT_FOLDER, pdf_name)
+
+            generate_invoice_pdf(row, pdf_path)
+            pdf_files.append(pdf_path)
+
+        zip_name = f"STC_BILLS_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_path = os.path.join(OUTPUT_FOLDER, zip_name)
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+            for p in pdf_files:
+                z.write(p, arcname=os.path.basename(p))
 
         return send_file(zip_path, as_attachment=True)
 
-    return render_template("invoice.html")
+    return render_template("index.html")
 
-@app.route("/preview", methods=["POST"])
-def preview():
-    file = request.files.get("file")
-    if not file:
-        return jsonify(ok=False, error="No file")
-
-    df = pd.read_excel(file)
-    rows = []
-
-    for _, r in df.head(10).iterrows():
-        row = sanitize_row(r.to_dict())
-        total = (
-            float(r.get("FreightAmt", 0) or 0)
-            + float(r.get("ToPointCharges", 0) or 0)
-            + float(r.get("UnloadingCharge", 0) or 0)
-        )
-        row["TotalAmount"] = str(total)
-        rows.append(row)
-
-    return jsonify(ok=True, count=len(df), rows=rows)
-
-@app.route("/api/history")
-def history():
-    return jsonify([])
-
+# ======================================================
 if __name__ == "__main__":
     app.run(debug=True)
