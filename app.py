@@ -67,7 +67,13 @@ def index():
 
 
 def generate_pdf(df):
-    bill_no = df.iloc[0]["FreightBillNo"]
+    # Convert string dates to datetime if needed
+    date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate', 'DateArrival', 'DateDelivery']
+    for col in date_columns:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], format='%d-%m-%Y', errors='coerce')
+    
+    bill_no = str(df.iloc[0]["FreightBillNo"]).replace("/", "_")
     pdf_path = f"{OUTPUT_FOLDER}/{bill_no}.pdf"
 
     c = canvas.Canvas(pdf_path, pagesize=A4)
