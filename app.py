@@ -353,7 +353,15 @@ def generate_pdf(df):
     c.rect(table_left, y, total_col_width, total_row_height, stroke=1, fill=0)
     
     c.setFont("Helvetica-Bold", 8)
-    total_words = num2words(total_amount, to='currency', lang='en_IN').title()
+    # Convert to Rupees and Paise
+    rupees = int(total_amount)
+    paise = int((total_amount - rupees) * 100)
+    
+    if paise > 0:
+        total_words = f"{num2words(rupees, lang='en_IN').title()} Rupees and {num2words(paise, lang='en_IN').title()} Paise"
+    else:
+        total_words = f"{num2words(rupees, lang='en_IN').title()} Rupees"
+    
     c.drawString(table_left + 5, y + 10, f"Total in words (Rs.) :  {total_words} Only")
     
     c.setFont("Helvetica-Bold", 9)
