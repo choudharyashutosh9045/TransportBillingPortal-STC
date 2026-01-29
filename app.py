@@ -101,6 +101,30 @@ def calc_total(row):
 
 def now_ts():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def sanitize_row(row: dict):
+    clean = {}
+    for k, v in row.items():
+        # NaN / None
+        if pd.isna(v):
+            clean[k] = ""
+            continue
+
+        # pandas Timestamp / datetime
+        if isinstance(v, (pd.Timestamp, datetime)):
+            clean[k] = v.strftime("%d-%m-%Y")
+            continue
+
+        # numbers → string (PDF ke liye safest)
+        if isinstance(v, (int, float)):
+            # avoid .0 for ints
+            clean[k] = str(int(v)) if float(v).is_integer() else str(v)
+            continue
+
+        # everything else
+        clean[k] = str(v).strip()
+
+    return clean
+
 
 
 # ==========================
@@ -190,7 +214,9 @@ def get_history_db(limit=10):
 
 # ---------------- PDF GENERATOR ----------------
 def generate_invoice_pdf(row: dict, pdf_path: str):
+    row = sanitize_row(row)
     row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
+
 
     W, H = landscape(A4)
     c = canvas.Canvas(pdf_path, pagesize=(W, H))
@@ -514,7 +540,5 @@ init_db()
 
 if __name__ == "__main__":
     print("RUNNING APP VERSION: PORTAL-UI + PREVIEW + HISTORY + TEMPLATE + DB")
-    app.run(debug=True)
-if __name__ == "__main__":
     app.run(debug=True)
 
