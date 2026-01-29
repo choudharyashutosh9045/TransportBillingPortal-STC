@@ -6,6 +6,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from num2words import num2words
 import os
+from PIL import Image
 
 app = Flask(__name__)
 
@@ -96,9 +97,33 @@ def generate_pdf(df):
     # ================= OUTER BORDER =================
     c.rect(15, 15, width - 30, height - 30, stroke=1, fill=0)
 
-    # ================= LOGO =================
-    if os.path.exists(LOGO_PATH):
-        c.drawImage(LOGO_PATH, 55, height - 140, width=100, height=80, preserveAspectRatio=True, mask='auto')
+    # ================= LOGO WITH ERROR HANDLING =================
+    try:
+        if os.path.exists(LOGO_PATH):
+            # Verify it's a valid image
+            try:
+                img = Image.open(LOGO_PATH)
+                img.verify()
+                print(f"✓ Logo found and verified: {LOGO_PATH}")
+                
+                # Draw logo - REMOVED mask='auto' parameter (this was the issue!)
+                c.drawImage(LOGO_PATH, 55, height - 140, width=100, height=80, preserveAspectRatio=True)
+                print("✓ Logo successfully added to PDF")
+                
+            except Exception as img_error:
+                print(f"⚠ Logo file is corrupted or invalid: {img_error}")
+                # Draw placeholder text instead
+                c.setFont("Helvetica-Bold", 10)
+                c.drawString(55, height - 80, "[LOGO]")
+        else:
+            print(f"⚠ Logo not found at: {LOGO_PATH}")
+            # Draw placeholder
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(55, height - 80, "[LOGO]")
+            
+    except Exception as e:
+        print(f"⚠ Error loading logo: {e}")
+        # Continue without logo - don't crash the entire PDF generation
 
     # ================= HEADER =================
     c.setFont("Helvetica-Bold", 16)
@@ -303,6 +328,7 @@ def generate_pdf(df):
     c.line(width - 180, sig_y - 52, width - 35, sig_y - 52)
 
     c.save()
+    print(f"✓ PDF saved successfully: {pdf_path}")
     return pdf_path
 
 
