@@ -13,9 +13,7 @@ from reportlab.lib.utils import ImageReader
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# ======================================================
-# APP SETUP
-# ======================================================
+# ---------------- APP INIT ----------------
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -27,9 +25,7 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# ======================================================
-# FIXED DATA
-# ======================================================
+# ---------------- FIXED DETAILS ----------------
 FIXED_PARTY = {
     "PartyName": "Grivaa Springs Private Ltd.",
     "PartyAddress": "Khasra no 135, Tansipur, Roorkee",
@@ -56,9 +52,7 @@ REQUIRED_HEADERS = [
     "SourceDetention","DestinationDetention"
 ]
 
-# ======================================================
-# HELPERS
-# ======================================================
+# ---------------- SAFE HELPERS ----------------
 def safe_str(v):
     if pd.isna(v):
         return ""
@@ -74,62 +68,110 @@ def safe_float(v):
 
 def format_date(v):
     try:
-        d = pd.to_datetime(v, errors="coerce", dayfirst=True)
-        return "" if pd.isna(d) else d.strftime("%d %b %Y")
+        dt = pd.to_datetime(v, dayfirst=True, errors="coerce")
+        if pd.isna(dt):
+            return ""
+        return dt.strftime("%d %b %Y")
     except:
-        return safe_str(v)
+        return ""
 
 def money(v):
-    return f"{safe_float(v):.2f}"
+    try:
+        return f"{float(v):.2f}"
+    except:
+        return "0.00"
 
 def calc_total(row):
-    return (
-        safe_float(row.get("FreightAmt")) +
-        safe_float(row.get("ToPointCharges")) +
-        safe_float(row.get("UnloadingCharge")) +
-        safe_float(row.get("SourceDetention")) +
-        safe_float(row.get("DestinationDetention"))
-    )
+    total = 0.0
+    for k in ["FreightAmt","ToPointCharges","UnloadingCharge","SourceDetention","DestinationDetention"]:
+        total += safe_float(row.get(k))
+    return round(total, 2)
 
-# ======================================================
-# PDF GENERATOR (FORMAT UNCHANGED)
-# ======================================================
+# ---------------- PDF GENERATOR ----------------
 def generate_invoice_pdf(row, pdf_path):
     row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
 
     W, H = landscape(A4)
     c = canvas.Canvas(pdf_path, pagesize=(W, H))
 
-    LM, RM, TM, BM = 10*mm, 10*mm, 10*mm, 10*mm
+    LM = 10 * mm
+    RM = 10 * mm
+    TM = 10 * mm
+    BM = 10 * mm
 
     c.setLineWidth(1)
-    c.rect(LM, BM, W-LM-RM, H-TM-BM)
+    c.rect(LM, BM, W - LM - RM, H - TM - BM)
 
+    # HEADER
     c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(W/2, H-TM-8*mm, "SOUTH TRANSPORT COMPANY")
+    c.drawCentredString(W/2, H - TM - 8*mm, "SOUTH TRANSPORT COMPANY")
     c.setFont("Helvetica", 8)
-    c.drawCentredString(W/2, H-TM-12*mm, "Dehradun Road Near power Grid Bhagwanpur")
-    c.drawCentredString(W/2, H-TM-15*mm, "Roorkee, Haridwar, U.K. 247661, India")
-    c.setFont("Helvetica-Bold", 10)
-    c.drawCentredString(W/2, H-TM-22*mm, "INVOICE")
+    c.drawCentredString(W/2, H - TM - 14*mm, "Dehradun Road Near Power Grid Bhagwanpur, Roorkee")
+
+    # BILL BOX
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(LM + 5*mm, H - TM - 30*mm, f"Freight Bill No: {safe_str(row.get('FreightBillNo'))}")
+    c.drawString(LM + 5*mm, H - TM - 36*mm, f"Invoice Date: {format_date(row.get('InvoiceDate'))}")
+    c.drawString(LM + 5*mm, H - TM - 42*mm, f"Due Date: {format_date(row.get('DueDate'))}")
+
+    # TABLE
+    y = H - 80*mm
+    c.setFont("Helvetica-Bold", 7)
+
+    headers = [
+        "Shipment Date","LR No","Destination","Truck No",
+        "Pkgs","Weight","Freight","To Point","Unloading",
+        "Src Det","Dest Det","Total"
+    ]
+
+    x = LM + 5*mm
+    col_w = 22*mm
+
+    for h in headers:
+        c.drawString(x, y, h)
+        x += col_w
+
+    c.setFont("Helvetica", 7)
+    y -= 8*mm
+    x = LM + 5*mm
 
     total_amt = calc_total(row)
 
-    c.setFont("Helvetica", 8)
-    c.drawString(LM+5*mm, BM+20*mm, f"Freight Bill No: {safe_str(row.get('FreightBillNo'))}")
-    c.drawString(LM+5*mm, BM+15*mm, f"LR No: {safe_str(row.get('LRNo'))}")
-    c.drawString(LM+5*mm, BM+10*mm, f"Total Amount: {money(total_amt)}")
+    values = [
+        format_date(row.get("ShipmentDate")),
+        safe_str(row.get("LRNo")),
+        safe_str(row.get("Destination")),
+        safe_str(row.get("TruckNo")),
+        safe_str(row.get("Pkgs")),
+        safe_str(row.get("WeightKgs")),
+        money(row.get("FreightAmt")),
+        money(row.get("ToPointCharges")),
+        money(row.get("UnloadingCharge")),
+        money(row.get("SourceDetention")),
+        money(row.get("DestinationDetention")),
+        money(total_amt),
+    ]
 
-    words = num2words(int(round(total_amt)), lang="en").title() + " Rupees Only"
-    c.drawString(LM+5*mm, BM+5*mm, f"Amount in Words: {words}")
+    for v in values:
+        c.drawString(x, y, v)
+        x += col_w
+
+    # TOTAL IN WORDS (CRASH SAFE)
+    try:
+        amt_words = int(round(total_amt))
+    except:
+        amt_words = 0
+
+    words = num2words(amt_words, lang="en").title() + " Rupees Only"
+
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(LM + 5*mm, BM + 20*mm, f"Total (in words): {words}")
 
     c.showPage()
     c.save()
 
-# ======================================================
-# ROUTES
-# ======================================================
-@app.route("/", methods=["GET", "POST"])
+# ---------------- ROUTES ----------------
+@app.route("/", methods=["GET","POST"])
 def index():
     if request.method == "POST":
         file = request.files.get("file")
@@ -140,38 +182,38 @@ def index():
         file.save(path)
 
         df = pd.read_excel(path)
-        df.columns = [c.strip() for c in df.columns]
+        df.columns = [str(c).strip() for c in df.columns]
 
         missing = [h for h in REQUIRED_HEADERS if h not in df.columns]
         if missing:
             return f"Missing columns: {missing}", 400
 
-        pdf_files = []
+        pdfs = []
 
-        for i, r in df.iterrows():
+        for _, r in df.iterrows():
             row = r.to_dict()
+            bill = safe_str(row.get("FreightBillNo","BILL"))
+            lr = safe_str(row.get("LRNo","LR"))
+            ts = datetime.now().strftime("%H%M%S")
 
-            bill = safe_str(row.get("FreightBillNo")) or f"BILL{i+1}"
-            lr = safe_str(row.get("LRNo")) or f"LR{i+1}"
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-
-            pdf_name = f"{bill}_LR{lr}_{ts}.pdf"
+            pdf_name = f"{bill}_{lr}_{ts}.pdf"
             pdf_path = os.path.join(OUTPUT_FOLDER, pdf_name)
 
             generate_invoice_pdf(row, pdf_path)
-            pdf_files.append(pdf_path)
+            pdfs.append(pdf_path)
 
-        zip_name = f"STC_BILLS_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_name = f"INVOICES_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
         zip_path = os.path.join(OUTPUT_FOLDER, zip_name)
 
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-            for p in pdf_files:
-                z.write(p, arcname=os.path.basename(p))
+        with zipfile.ZipFile(zip_path,"w",zipfile.ZIP_DEFLATED) as z:
+            for p in pdfs:
+                z.write(p, os.path.basename(p))
 
         return send_file(zip_path, as_attachment=True)
 
     return render_template("index.html")
 
-# ======================================================
+# ---------------- RUN ----------------
 if __name__ == "__main__":
+    print("✅ APP RUNNING - PDF SAFE MODE ENABLED")
     app.run(debug=True)
