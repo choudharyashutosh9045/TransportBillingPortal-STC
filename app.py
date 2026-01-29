@@ -291,7 +291,6 @@ def generate_invoice_pdf(row, pdf_path):
     c.showPage()
     c.save()
 
-
 @app.route("/", methods=["POST"])
 def upload():
     file = request.files["file"]
