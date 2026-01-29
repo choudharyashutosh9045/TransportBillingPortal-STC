@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, send_file
 import pandas as pd
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
@@ -62,8 +62,8 @@ def generate_pdf(df):
     bill_no = str(df.iloc[0]["FreightBillNo"]).replace("/", "_")
     pdf_path = f"{OUTPUT_FOLDER}/{bill_no}.pdf"
 
-    c = canvas.Canvas(pdf_path, pagesize=A4)
-    width, height = A4
+    c = canvas.Canvas(pdf_path, pagesize=landscape(A4))
+    width, height = landscape(A4)
 
     # ================= OUTER BORDER =================
     c.rect(15, 15, width - 30, height - 30, stroke=1, fill=0)
@@ -122,8 +122,8 @@ def generate_pdf(df):
         "Total\nAmount (Rs.)"
     ]
     
-    # Column widths - optimized to fit all columns in A4 width (565 points available)
-    col_widths = [18, 32, 24, 32, 24, 35, 42, 20, 26, 32, 32, 28, 32, 32, 32, 32, 38, 38]
+    # Column widths - landscape has ~800 points width, so more space
+    col_widths = [25, 45, 35, 50, 35, 50, 60, 30, 40, 45, 45, 40, 50, 50, 50, 50, 55, 55]
     
     # Draw header background
     c.setFillColor(colors.lightgrey)
@@ -131,16 +131,16 @@ def generate_pdf(df):
     
     # Draw headers
     c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 6)
+    c.setFont("Helvetica-Bold", 7)
     
     x = 30
     for i, header in enumerate(headers):
         # Multi-line header
         lines = header.split('\n')
-        y_offset = table_top - 8
+        y_offset = table_top - 9
         for line in lines:
             c.drawCentredString(x + col_widths[i]/2, y_offset, line)
-            y_offset -= 7
+            y_offset -= 8
         x += col_widths[i]
     
     # Draw vertical lines for header
@@ -151,7 +151,7 @@ def generate_pdf(df):
     c.line(x, table_top, x, table_top - 30)  # Last line
     
     # ================= TABLE DATA =================
-    c.setFont("Helvetica", 6)
+    c.setFont("Helvetica", 7)
     y = table_top - 30
     total_amount = 0
     
