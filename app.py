@@ -17,6 +17,34 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
+def wrap_text(c, text, x, y, max_width, font_name="Helvetica", font_size=7, line_height=8):
+    """Wrap text to fit within max_width"""
+    words = str(text).split()
+    lines = []
+    current_line = ""
+    
+    c.setFont(font_name, font_size)
+    
+    for word in words:
+        test_line = current_line + word + " "
+        if c.stringWidth(test_line, font_name, font_size) <= max_width:
+            current_line = test_line
+        else:
+            if current_line:
+                lines.append(current_line.strip())
+            current_line = word + " "
+    
+    if current_line:
+        lines.append(current_line.strip())
+    
+    # Draw lines centered
+    start_y = y + (len(lines) - 1) * line_height / 2
+    for i, line in enumerate(lines):
+        c.drawCentredString(x, start_y - (i * line_height), line)
+    
+    return y - (len(lines) * line_height)
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
@@ -122,8 +150,8 @@ def generate_pdf(df):
         "Total\nAmount (Rs.)"
     ]
     
-    # Column widths - landscape has ~800 points width, so more space
-    col_widths = [25, 45, 35, 50, 35, 50, 60, 30, 40, 45, 45, 40, 50, 50, 50, 50, 55, 55]
+    # Column widths - adjusted to fit within border (width - 60 = ~780 points)
+    col_widths = [25, 42, 32, 48, 32, 45, 55, 28, 38, 42, 42, 38, 48, 48, 48, 48, 52, 52]
     
     # Draw header background
     c.setFillColor(colors.lightgrey)
@@ -156,7 +184,7 @@ def generate_pdf(df):
     total_amount = 0
     
     for idx, row in df.iterrows():
-        row_height = 30
+        row_height = 35  # Increased for text wrapping
         y -= row_height
         
         # Calculate row total
@@ -169,32 +197,36 @@ def generate_pdf(df):
         )
         total_amount += row_total
         
-        # Data values
+        # Data values with indices for wrapping
         values = [
-            str(idx + 1),
-            row["ShipmentDate"].strftime("%d %b %Y"),
-            str(row["LRNo"]),
-            str(row["Destination"]),
-            str(row["CNNumber"]),
-            str(row["TruckNo"]),
-            str(row["InvoiceNo"]),
-            str(int(row["Pkgs"])),
-            str(int(row["WeightKgs"])),
-            row["DateArrival"].strftime("%d %b %Y"),
-            row["DateDelivery"].strftime("%d %b %Y"),
-            str(row["TruckType"]),
-            f"{float(row['FreightAmt']):.2f}",
-            f"{float(row['ToPointCharges']):.2f}",
-            f"{float(row['UnloadingCharge']):.2f}",
-            f"{float(row['SourceDetention']):.2f}",
-            f"{float(row['DestinationDetention']):.2f}",
-            f"{row_total:.2f}"
+            (str(idx + 1), False),  # 0: S.no
+            (row["ShipmentDate"].strftime("%d %b %Y"), False),  # 1: Shipment Date
+            (str(row["LRNo"]), False),  # 2: LR No
+            (str(row["Destination"]), False),  # 3: Destination
+            (str(row["CNNumber"]), False),  # 4: CN Number
+            (str(row["TruckNo"]), False),  # 5: Truck No
+            (str(row["InvoiceNo"]), True),  # 6: Invoice No - WRAP
+            (str(int(row["Pkgs"])), False),  # 7: Pkgs
+            (str(int(row["WeightKgs"])), False),  # 8: Weight
+            (row["DateArrival"].strftime("%d %b %Y"), False),  # 9: Date Arrival
+            (row["DateDelivery"].strftime("%d %b %Y"), False),  # 10: Date Delivery
+            (str(row["TruckType"]), True),  # 11: Truck Type - WRAP
+            (f"{float(row['FreightAmt']):.2f}", False),  # 12: Freight
+            (f"{float(row['ToPointCharges']):.2f}", False),  # 13: To Point
+            (f"{float(row['UnloadingCharge']):.2f}", False),  # 14: Unloading
+            (f"{float(row['SourceDetention']):.2f}", False),  # 15: Source
+            (f"{float(row['DestinationDetention']):.2f}", False),  # 16: Destination
+            (f"{row_total:.2f}", False)  # 17: Total
         ]
         
-        # Draw row
+        # Draw row with wrapping for specific columns
         x = 30
-        for i, val in enumerate(values):
-            c.drawCentredString(x + col_widths[i]/2, y + 10, val)
+        for i, (val, should_wrap) in enumerate(values):
+            if should_wrap:
+                # Use wrap_text for Invoice No and Truck Type
+                wrap_text(c, val, x + col_widths[i]/2, y + row_height/2, col_widths[i] - 4)
+            else:
+                c.drawCentredString(x + col_widths[i]/2, y + row_height/2, val)
             x += col_widths[i]
         
         # Draw horizontal line
@@ -207,21 +239,34 @@ def generate_pdf(df):
         x += width_val
     c.line(x, table_top - 30, x, y)  # Last line
     
-    # ================= TOTAL IN WORDS =================
-    c.setFont("Helvetica-Bold", 9)
-    total_words = num2words(total_amount, to='currency', lang='en_IN').title()
-    c.drawString(35, y - 15, f"Total in words (Rs.) :    {total_words} Only")
+    # ================= TOTAL ROW (INSIDE BORDER) =================
+    total_row_height = 25
+    y -= total_row_height
     
-    c.setFont("Helvetica-Bold", 10)
-    c.drawRightString(width - 35, y - 15, f"{total_amount:.2f}")
+    # Draw total row border
+    c.rect(30, y, sum(col_widths), total_row_height, stroke=1, fill=0)
+    
+    # Total in words on left side
+    c.setFont("Helvetica-Bold", 8)
+    total_words = num2words(total_amount, to='currency', lang='en_IN').title()
+    c.drawString(35, y + 10, f"Total in words (Rs.) :  {total_words} Only")
+    
+    # Total amount on right side (below Total Amount column)
+    c.setFont("Helvetica-Bold", 9)
+    # Calculate x position for last column (Total Amount)
+    total_col_x = 30 + sum(col_widths[:-1])
+    c.drawCentredString(total_col_x + col_widths[-1]/2, y + 10, f"{total_amount:.2f}")
+    
+    # Vertical line before total amount
+    c.line(total_col_x, y, total_col_x, y + total_row_height)
 
     # ================= NOTE =================
-    c.setFont("Helvetica", 8)
-    note_y = y - 45
+    c.setFont("Helvetica", 7)
+    note_y = y - 15
     c.drawString(30, note_y, 'Any changes or discrepancies should be highlighted within 5 working days else it would be considered final. Please send all remittance details to "southtprk@gmail.com".')
 
-    # ================= BANK DETAILS TABLE =================
-    bank_y = note_y - 80
+    # ================= BANK DETAILS TABLE (INSIDE BORDER) =================
+    bank_y = note_y - 25
     
     # Bank details data
     bank_details = [
@@ -234,10 +279,9 @@ def generate_pdf(df):
     ]
     
     # Draw bank table
-    bank_table_width = 200
-    row_height = 20
+    row_height = 18
     
-    c.setFont("Helvetica", 8)
+    c.setFont("Helvetica", 7)
     for i, (label, value) in enumerate(bank_details):
         y_pos = bank_y - (i * row_height)
         
@@ -246,17 +290,17 @@ def generate_pdf(df):
         c.rect(130, y_pos - row_height, 100, row_height, stroke=1, fill=0)
         
         # Draw text
-        c.drawString(35, y_pos - 13, label)
-        c.drawString(135, y_pos - 13, value)
+        c.drawString(35, y_pos - 12, label)
+        c.drawString(135, y_pos - 12, value)
 
-    # ================= SIGNATURE =================
-    sig_y = bank_y - 20
-    c.setFont("Helvetica-Bold", 10)
-    c.drawRightString(width - 60, sig_y, "For SOUTH TRANSPORT COMPANY")
+    # ================= SIGNATURE (INSIDE BORDER) =================
+    sig_y = bank_y - 15
+    c.setFont("Helvetica-Bold", 9)
+    c.drawRightString(width - 35, sig_y, "For SOUTH TRANSPORT COMPANY")
     
-    c.setFont("Helvetica", 8)
-    c.drawRightString(width - 60, sig_y - 60, "(Authorized Signatory)")
-    c.line(width - 200, sig_y - 62, width - 40, sig_y - 62)
+    c.setFont("Helvetica", 7)
+    c.drawRightString(width - 35, sig_y - 50, "(Authorized Signatory)")
+    c.line(width - 180, sig_y - 52, width - 35, sig_y - 52)
 
     c.save()
     return pdf_path
