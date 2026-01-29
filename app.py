@@ -290,8 +290,8 @@ def generate_pdf(df):
         c.rect(130, y_pos - row_height, 100, row_height, stroke=1, fill=0)
         
         # Draw text
-        c.drawString(35, y_pos - 15, label)
-        c.drawString(135, y_pos - 15, value)
+        c.drawString(35, y_pos - 10, label)
+        c.drawString(135, y_pos - 10, value)
 
     # ================= SIGNATURE (INSIDE BORDER) =================
     sig_y = bank_y - 15
