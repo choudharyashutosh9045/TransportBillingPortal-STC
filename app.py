@@ -14,6 +14,22 @@ OUTPUT_FOLDER = "output"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+def draw_wrapped_text(c, text, x, y, max_width, leading=9):
+    words = str(text).split(" ")
+    line = ""
+    for word in words:
+        test_line = line + word + " "
+        if c.stringWidth(test_line, "Helvetica", 7) <= max_width:
+            line = test_line
+        else:
+            c.drawString(x, y, line)
+            y -= leading
+            line = word + " "
+    if line:
+        c.drawString(x, y, line)
+    return y
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
@@ -36,55 +52,72 @@ def generate_invoice_pdf(df):
     c = canvas.Canvas(pdf_file, pagesize=A4)
     width, height = A4
 
-    # ===== HEADER =====
-    c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(width / 2, height - 30, "SOUTH TRANSPORT COMPANY")
+    # ================= LOGO (SMALLER) =================
+    logo_path = "static/logo.png"   # apna logo path
+    if os.path.exists(logo_path):
+        c.drawImage(
+            logo_path,
+            25,
+            height - 95,
+            width=80,
+            height=45,
+            preserveAspectRatio=True,
+            mask='auto'
+        )
+
+    # ================= HEADER =================
+    c.setFont("Helvetica-Bold", 13)
+    c.drawCentredString(width / 2, height - 50, "SOUTH TRANSPORT COMPANY")
 
     c.setFont("Helvetica", 9)
-    c.drawCentredString(width / 2, height - 45,
+    c.drawCentredString(
+        width / 2,
+        height - 64,
         "Dehradun Road Near Power Grid Bhagwanpur, Roorkee, Haridwar, U.K. 247661, India"
     )
 
     c.setFont("Helvetica-Bold", 11)
-    c.drawCentredString(width / 2, height - 65, "INVOICE")
+    c.drawCentredString(width / 2, height - 80, "INVOICE")
 
-    # ===== PARTY DETAILS =====
-    c.rect(20, height - 170, 260, 90)
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(25, height - 85, "To,")
-    c.setFont("Helvetica", 9)
-    c.drawString(25, height - 100, "Grivaa Springs Private Ltd.")
-    c.drawString(25, height - 115, "Khasra no 135, Tanshipur, Roorkee")
-    c.drawString(25, height - 130, "Roorkee, Uttarakhand 247656")
-    c.drawString(25, height - 145, "GSTIN: 05AAICG4793P1ZV")
+    # ================= LEFT BOX (SMALLER) =================
+    c.rect(20, height - 180, 250, 85)
+    c.setFont("Helvetica", 8)
+    c.drawString(25, height - 105, "To,")
+    c.drawString(25, height - 118, "Grivaa Springs Private Ltd.")
+    c.drawString(25, height - 131, "Khasra no 135, Tanshipur, Roorkee")
+    c.drawString(25, height - 144, "Roorkee, Uttarakhand 247656")
+    c.drawString(25, height - 157, "GSTIN: 05AAICG4793P1ZV")
 
-    # ===== INVOICE BOX =====
-    c.rect(width - 220, height - 170, 200, 90)
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(width - 210, height - 100, f"Freight Bill No : {invoice_no}")
-    c.drawString(width - 210, height - 120,
+    # ================= RIGHT BOX (SMALLER) =================
+    c.rect(width - 230, height - 180, 210, 85)
+    c.setFont("Helvetica", 8)
+    c.drawString(width - 220, height - 115, f"Freight Bill No : {invoice_no}")
+    c.drawString(
+        width - 220,
+        height - 130,
         f"Invoice Date : {df.iloc[0]['InvoiceDate'].strftime('%d-%m-%Y')}"
     )
-    c.drawString(width - 210, height - 140,
+    c.drawString(
+        width - 220,
+        height - 145,
         f"Due Date : {df.iloc[0]['DueDate'].strftime('%d-%m-%Y')}"
     )
 
-    c.setFont("Helvetica", 9)
-    c.drawString(25, height - 190, f"From location: {df.iloc[0]['FromLocation']}")
+    c.drawString(25, height - 195, f"From location: {df.iloc[0]['FromLocation']}")
 
-    # ===== TABLE HEADER =====
+    # ================= TABLE HEADER =================
     y = height - 230
     c.setFont("Helvetica-Bold", 7)
 
     headers = [
-        "S.No", "Shipment Date", "LR No", "Destination", "CN Number",
-        "Truck No", "Invoice No", "Pkgs", "Weight (kgs)",
-        "Date Arrival", "Date Delivery", "Truck Type",
-        "Freight Amt", "To Point", "Unloading",
-        "Source Det.", "Dest. Det.", "Total"
+        "S.No", "Shipment\nDate", "LR No", "Destination", "CN No",
+        "Truck No", "Invoice No", "Pkgs", "Weight",
+        "Arrival", "Delivery", "Truck Type",
+        "Freight", "To Point", "Unload",
+        "Src Det", "Dst Det", "Total"
     ]
 
-    col_widths = [25, 55, 45, 55, 55, 55, 55, 30, 40, 55, 55, 40, 45, 40, 45, 45, 45, 50]
+    col_widths = [22, 45, 35, 48, 40, 45, 48, 26, 35, 40, 40, 40, 42, 38, 40, 38, 38, 45]
 
     x = 20
     for i, h in enumerate(headers):
@@ -92,11 +125,10 @@ def generate_invoice_pdf(df):
         x += col_widths[i]
 
     c.line(20, y - 2, width - 20, y - 2)
+    y -= 14
 
-    # ===== TABLE DATA =====
-    y -= 15
+    # ================= TABLE DATA =================
     total_amount = 0
-
     c.setFont("Helvetica", 7)
 
     for idx, row in df.iterrows():
@@ -122,58 +154,35 @@ def generate_invoice_pdf(df):
             row["DateArrival"].strftime("%d-%m-%Y"),
             row["DateDelivery"].strftime("%d-%m-%Y"),
             row["TruckType"],
-            f"{row['FreightAmt']:.2f}",
-            f"{row['ToPointCharges']:.2f}",
-            f"{row['UnloadingCharge']:.2f}",
-            f"{row['SourceDetention']:.2f}",
-            f"{row['DestinationDetention']:.2f}",
-            f"{row_total:.2f}",
+            row["FreightAmt"],
+            row["ToPointCharges"],
+            row["UnloadingCharge"],
+            row["SourceDetention"],
+            row["DestinationDetention"],
+            row_total
         ]
 
-        for i, v in enumerate(values):
-            c.drawString(x + 2, y, str(v))
+        max_row_height = y
+        for i, val in enumerate(values):
+            new_y = draw_wrapped_text(
+                c,
+                val,
+                x + 2,
+                y,
+                col_widths[i] - 4
+            )
+            max_row_height = min(max_row_height, new_y)
             x += col_widths[i]
 
+        y = max_row_height - 8
         total_amount += row_total
-        y -= 12
 
-        if y < 100:
-            c.showPage()
-            y = height - 50
-
-    # ===== TOTAL =====
-    c.setFont("Helvetica-Bold", 9)
-    c.drawRightString(width - 25, y - 10, f"{total_amount:.2f}")
+    # ================= TOTAL =================
+    c.setFont("Helvetica-Bold", 8)
+    c.drawRightString(width - 25, y, f"{total_amount:.2f}")
 
     amount_words = num2words(total_amount, to="currency", lang="en_IN").title()
-    c.drawString(25, y - 10, f"Total in words (Rs.): {amount_words} Only")
-
-    # ===== FOOTER =====
-    c.setFont("Helvetica", 8)
-    c.drawString(25, 80,
-        'Any changes or discrepancies should be highlighted within 5 working days else it would be considered final.'
-    )
-
-    # ===== BANK DETAILS =====
-    c.rect(20, 20, 260, 120)
-    c.setFont("Helvetica", 8)
-    bank_lines = [
-        ("Our PAN No.", "BSSPG9414K"),
-        ("STC GSTIN", "05BSSPG9414K1ZA"),
-        ("STC State Code", "5"),
-        ("Account name", "South Transport Company"),
-        ("Account no", "36420500142"),
-        ("IFS Code", "ICIC0003642"),
-    ]
-
-    yb = 120
-    for k, v in bank_lines:
-        c.drawString(25, yb, k)
-        c.drawString(140, yb, v)
-        yb -= 18
-
-    c.drawRightString(width - 50, 60, "For SOUTH TRANSPORT COMPANY")
-    c.drawRightString(width - 50, 40, "Authorized Signatory")
+    c.drawString(22, y, f"Total in words (Rs.): {amount_words} Only")
 
     c.save()
     return pdf_file
