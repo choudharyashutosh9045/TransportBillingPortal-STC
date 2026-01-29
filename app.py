@@ -33,16 +33,25 @@ def draw_wrapped_text(c, text, x, y, max_width, leading=9):
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
+
+        if "excel" not in request.files:
+            return "No file part", 400
+
         file = request.files["excel"]
-        filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-        file.save(filepath)
 
-        df = pd.read_excel(filepath)
-        pdf_path = generate_invoice_pdf(df)
+        if file.filename == "":
+            return "No selected file", 400
 
-        return send_file(pdf_path, as_attachment=True)
+        path = os.path.join(UPLOAD_FOLDER, file.filename)
+        file.save(path)
+
+        df = pd.read_excel(path)
+        pdf = generate_invoice_pdf(df)
+
+        return send_file(pdf, as_attachment=True)
 
     return render_template("index.html")
+
 
 
 def generate_invoice_pdf(df):
