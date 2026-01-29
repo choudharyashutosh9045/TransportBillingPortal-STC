@@ -3,24 +3,20 @@ import os
 import pandas as pd
 from datetime import datetime
 from num2words import num2words
-import zipfile
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
+import zipfile
 
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "output")
-TEMPLATE_FOLDER = os.path.join(BASE_DIR, "templates")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
-
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 FIXED_PARTY = {
     "PartyName": "Grivaa Springs Private Ltd.",
@@ -28,189 +24,181 @@ FIXED_PARTY = {
     "PartyCity": "Roorkee",
     "PartyState": "Uttarakhand",
     "PartyPincode": "247656",
-    "PartyGSTIN": "05AAICG4793P1ZV",
+    "PartyGSTIN": "05AAICG4793P1ZV"
 }
 
-FIXED_STC_BANK = {
+FIXED_BANK = {
     "PANNo": "BSSPG9414K",
-    "STCGSTIN": "05BSSPG9414K1ZA",
-    "STCStateCode": "5",
+    "GSTIN": "05BSSPG9414K1ZA",
+    "StateCode": "5",
     "AccountName": "South Transport Company",
     "AccountNo": "364205500142",
-    "IFSCode": "ICIC0003642",
+    "IFSCode": "ICIC0003642"
 }
 
 REQUIRED_HEADERS = [
-    "FreightBillNo","InvoiceDate","DueDate","FromLocation",
-    "ShipmentDate","LRNo","Destination","CNNumber",
-    "TruckNo","InvoiceNo","Pkgs","WeightKgs",
-    "DateArrival","DateDelivery","TruckType",
-    "FreightAmt","ToPointCharges","UnloadingCharge",
-    "SourceDetention","DestinationDetention"
+    "FreightBillNo","InvoiceDate","DueDate","FromLocation","ShipmentDate",
+    "LRNo","Destination","CNNumber","TruckNo","InvoiceNo","Pkgs","WeightKgs",
+    "DateArrival","DateDelivery","TruckType","FreightAmt","ToPointCharges",
+    "UnloadingCharge","SourceDetention","DestinationDetention"
 ]
 
 def s(v):
-    if pd.isna(v):
-        return ""
-    return str(v).strip()
+    return "" if pd.isna(v) else str(v)
 
 def f(v):
     try:
-        if pd.isna(v) or str(v).strip()=="":
-            return 0.0
         return float(v)
     except:
         return 0.0
 
 def d(v):
     try:
-        return pd.to_datetime(v, dayfirst=True).strftime("%d %b %Y")
+        return pd.to_datetime(v).strftime("%d %b %Y")
     except:
-        return ""
-
-def money(v):
-    return f"{f(v):.2f}"
-
-def total(r):
-    return (
-        f(r.get("FreightAmt")) +
-        f(r.get("ToPointCharges")) +
-        f(r.get("UnloadingCharge")) +
-        f(r.get("SourceDetention")) +
-        f(r.get("DestinationDetention"))
-    )
+        return s(v)
 
 def generate_invoice_pdf(row, pdf_path):
-    row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
     W, H = landscape(A4)
     c = canvas.Canvas(pdf_path, pagesize=(W, H))
 
-    LM = RM = TM = BM = 10 * mm
-    c.rect(LM, BM, W-LM-RM, H-TM-BM)
+    LM = 10 * mm
+    BM = 10 * mm
+
+    c.rect(LM, BM, W - 20*mm, H - 20*mm)
 
     c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(W/2, H-20, "SOUTH TRANSPORT COMPANY")
+    c.drawCentredString(W/2, H-20*mm, "SOUTH TRANSPORT COMPANY")
     c.setFont("Helvetica", 8)
-    c.drawCentredString(W/2, H-35, "Dehradun Road Near power Grid Bhagwanpur")
-    c.drawCentredString(W/2, H-48, "Roorkee, Haridwar, U.K. 247661, India")
+    c.drawCentredString(W/2, H-25*mm, "Dehradun Road Near power Grid Bhagwanpur")
+    c.drawCentredString(W/2, H-29*mm, "Roorkee, Haridwar, U.K. 247661, India")
     c.setFont("Helvetica-Bold", 10)
-    c.drawCentredString(W/2, H-65, "INVOICE")
+    c.drawCentredString(W/2, H-36*mm, "INVOICE")
 
     logo = os.path.join(BASE_DIR, "logo.png")
     if os.path.exists(logo):
-        c.drawImage(logo, LM+5, H-100, width=75*mm, height=40*mm, preserveAspectRatio=True)
+        c.drawImage(ImageReader(logo), LM+5*mm, H-60*mm, 70*mm, 35*mm, mask='auto')
 
-    c.rect(LM+5, H-160, 110*mm, 30*mm)
+    c.rect(LM+5*mm, H-95*mm, 110*mm, 30*mm)
     c.setFont("Helvetica-Bold", 8)
-    c.drawString(LM+10, H-145, "To,")
-    c.drawString(LM+10, H-158, s(row["PartyName"]))
+    c.drawString(LM+8*mm, H-75*mm, "To,")
+    c.drawString(LM+8*mm, H-80*mm, FIXED_PARTY["PartyName"])
     c.setFont("Helvetica", 7)
-    c.drawString(LM+10, H-170, s(row["PartyAddress"]))
-    c.drawString(LM+10, H-182, f'{row["PartyCity"]}, {row["PartyState"]} {row["PartyPincode"]}')
+    c.drawString(LM+8*mm, H-85*mm, FIXED_PARTY["PartyAddress"])
+    c.drawString(LM+8*mm, H-89*mm, f'{FIXED_PARTY["PartyCity"]}, {FIXED_PARTY["PartyState"]} {FIXED_PARTY["PartyPincode"]}')
     c.setFont("Helvetica-Bold", 7)
-    c.drawString(LM+10, H-194, f'GSTIN: {row["PartyGSTIN"]}')
+    c.drawString(LM+8*mm, H-93*mm, f'GSTIN: {FIXED_PARTY["PartyGSTIN"]}')
+
     c.setFont("Helvetica", 7)
-    c.drawString(LM+10, H-208, f'From location: {s(row["FromLocation"])}')
+    c.drawString(LM+8*mm, H-100*mm, f'From location: {s(row["FromLocation"])}')
 
-    rx = W-RM-90*mm
-    c.rect(rx, H-160, 85*mm, 30*mm)
+    c.rect(W-100*mm, H-95*mm, 85*mm, 30*mm)
     c.setFont("Helvetica-Bold", 8)
-    c.drawString(rx+8, H-145, f'Freight Bill No: {s(row["FreightBillNo"])}')
-    c.drawString(rx+8, H-160, f'Invoice Date: {d(row["InvoiceDate"])}')
-    c.drawString(rx+8, H-175, f'Due Date: {d(row["DueDate"])}')
+    c.drawString(W-96*mm, H-80*mm, f'Freight Bill No: {s(row["FreightBillNo"])}')
+    c.drawString(W-96*mm, H-86*mm, f'Invoice Date: {d(row["InvoiceDate"])}')
+    c.drawString(W-96*mm, H-92*mm, f'Due Date: {d(row["DueDate"])}')
 
-    tx = LM+5
-    ty = H-235
-    tw = W-LM-RM-10
-    th = 12
-    rh = 10
+    table_y = H-115*mm
+    row_h = 10*mm
 
-    headers = [
-        "S.No","Shipment Date","LR No","Destination","CN No","Truck No",
-        "Invoice No","Pkgs","Weight","Arrival","Delivery","Truck Type",
-        "Freight","To Point","Unloading","Source Det.","Dest. Det.","Total"
+    cols = [
+        ("S.No",15),("Shipment Date",30),("LR No",20),("Destination",30),
+        ("CN No",25),("Truck No",30),("Invoice No",55),("Pkgs",18),
+        ("Weight",22),("Arrival",28),("Delivery",28),("Truck Type",35),
+        ("Freight",28),("To Point",28),("Unloading",28),
+        ("Src Det.",28),("Dest Det.",28),("Total",30)
     ]
 
-    colw = tw/len(headers)
-    c.setFont("Helvetica-Bold", 6)
+    x = LM+5*mm
+    c.setFont("Helvetica-Bold", 7)
+    for h,w in cols:
+        c.rect(x, table_y, w, row_h)
+        c.drawCentredString(x+w/2, table_y+4*mm, h)
+        x += w
 
-    for i,h in enumerate(headers):
-        c.rect(tx+i*colw, ty, colw, th)
-        c.drawCentredString(tx+i*colw+colw/2, ty+4, h)
+    total = (
+        f(row["FreightAmt"]) + f(row["ToPointCharges"]) +
+        f(row["UnloadingCharge"]) + f(row["SourceDetention"]) +
+        f(row["DestinationDetention"])
+    )
 
-    vals = [
+    data = [
         "1", d(row["ShipmentDate"]), s(row["LRNo"]), s(row["Destination"]),
         s(row["CNNumber"]), s(row["TruckNo"]), s(row["InvoiceNo"]),
-        s(row["Pkgs"]), s(row["WeightKgs"]),
-        d(row["DateArrival"]), d(row["DateDelivery"]), s(row["TruckType"]),
-        money(row["FreightAmt"]), money(row["ToPointCharges"]),
-        money(row["UnloadingCharge"]), money(row["SourceDetention"]),
-        money(row["DestinationDetention"]), money(total(row))
+        s(row["Pkgs"]), s(row["WeightKgs"]), d(row["DateArrival"]),
+        d(row["DateDelivery"]), s(row["TruckType"]),
+        f'{f(row["FreightAmt"]):.2f}', f'{f(row["ToPointCharges"]):.2f}',
+        f'{f(row["UnloadingCharge"]):.2f}', f'{f(row["SourceDetention"]):.2f}',
+        f'{f(row["DestinationDetention"]):.2f}', f'{total:.2f}'
     ]
 
-    c.setFont("Helvetica", 6)
-    for i,v in enumerate(vals):
-        c.rect(tx+i*colw, ty-rh, colw, rh)
-        c.drawCentredString(tx+i*colw+colw/2, ty-rh+3, v)
-
-    words = num2words(int(round(total(row))), lang="en").title()+" Rupees Only"
-    c.rect(tx, ty-rh-8, tw, 8)
-    c.setFont("Helvetica-Bold", 7)
-    c.drawString(tx+5, ty-rh-5, f"Total in words (Rs.): {words}")
-    c.drawRightString(tx+tw-5, ty-rh-5, money(total(row)))
-
-    bx = tx
-    by = BM+20
-    bw = 85*mm
-    bh = 35*mm
-    c.rect(bx, by, bw, bh)
-    bank = [
-        ("Our PAN No.", row["PANNo"]),
-        ("STC GSTIN", row["STCGSTIN"]),
-        ("STC State Code", row["STCStateCode"]),
-        ("Account name", row["AccountName"]),
-        ("Account no", row["AccountNo"]),
-        ("IFS Code", row["IFSCode"])
-    ]
-    h = bh/len(bank)
+    x = LM+5*mm
+    y = table_y-row_h
     c.setFont("Helvetica", 7)
-    for i,(k,v) in enumerate(bank):
-        c.drawString(bx+5, by+bh-(i+1)*h+3, k)
-        c.drawString(bx+45, by+bh-(i+1)*h+3, v)
+    for (h,w),v in zip(cols,data):
+        c.rect(x, y, w, row_h)
+        c.drawCentredString(x+w/2, y+4*mm, v)
+        x += w
 
-    sx = W-RM-90
+    c.rect(LM+5*mm, y-row_h, sum(w for _,w in cols), row_h)
+    words = num2words(int(total), lang="en").title()+" Rupees Only"
+    c.drawString(LM+8*mm, y-row_h+4*mm, f"Total in words (Rs.): {words}")
+    c.drawRightString(W-15*mm, y-row_h+4*mm, f"{total:.2f}")
+
+    bank_y = BM+20*mm
+    c.rect(LM+5*mm, bank_y, 90*mm, 35*mm)
+    c.setFont("Helvetica", 7)
+    lines = [
+        ("Our PAN No", FIXED_BANK["PANNo"]),
+        ("STC GSTIN", FIXED_BANK["GSTIN"]),
+        ("STC State Code", FIXED_BANK["StateCode"]),
+        ("Account Name", FIXED_BANK["AccountName"]),
+        ("Account No", FIXED_BANK["AccountNo"]),
+        ("IFS Code", FIXED_BANK["IFSCode"])
+    ]
+    yy = bank_y+28*mm
+    for k,v in lines:
+        c.drawString(LM+8*mm, yy, k)
+        c.drawString(LM+45*mm, yy, v)
+        yy -= 5*mm
+
     c.setFont("Helvetica-Bold", 8)
-    c.drawString(sx, by+25, "For SOUTH TRANSPORT COMPANY")
-    c.line(sx, by+10, sx+120, by+10)
+    c.drawString(W-80*mm, BM+45*mm, "For SOUTH TRANSPORT COMPANY")
+    c.line(W-80*mm, BM+35*mm, W-20*mm, BM+35*mm)
     c.setFont("Helvetica", 7)
-    c.drawRightString(sx+120, by+2, "(Authorized Signatory)")
+    c.drawRightString(W-20*mm, BM+30*mm, "(Authorized Signatory)")
 
-    c.showPage()
     c.save()
 
 @app.route("/", methods=["GET","POST"])
 def index():
-    if request.method=="POST":
+    if request.method == "POST":
         file = request.files["file"]
         path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(path)
-        df = pd.read_excel(path)
-        df.columns = [c.strip() for c in df.columns]
-        for h in REQUIRED_HEADERS:
-            if h not in df.columns:
-                return f"Missing column: {h}"
-        files=[]
-        for _,r in df.iterrows():
-            name = f'{r["FreightBillNo"]}_{r["LRNo"]}.pdf'
-            p = os.path.join(OUTPUT_FOLDER,name)
-            generate_invoice_pdf(r.to_dict(),p)
-            files.append(p)
-        zname = os.path.join(OUTPUT_FOLDER,"invoices.zip")
-        with zipfile.ZipFile(zname,"w") as z:
-            for f in files:
-                z.write(f,os.path.basename(f))
-        return send_file(zname,as_attachment=True)
-    return render_template("index.html")
 
-if __name__=="__main__":
+        df = pd.read_excel(path)
+        df.columns = df.columns.str.strip()
+
+        missing = [h for h in REQUIRED_HEADERS if h not in df.columns]
+        if missing:
+            return f"Missing columns: {missing}", 400
+
+        pdfs = []
+        for _,row in df.iterrows():
+            name = f'{row["FreightBillNo"]}_{row["LRNo"]}.pdf'
+            out = os.path.join(OUTPUT_FOLDER, name)
+            generate_invoice_pdf(row, out)
+            pdfs.append(out)
+
+        zip_path = os.path.join(OUTPUT_FOLDER, "Invoices.zip")
+        with zipfile.ZipFile(zip_path, "w") as z:
+            for p in pdfs:
+                z.write(p, os.path.basename(p))
+
+        return send_file(zip_path, as_attachment=True)
+
+    return "<h2>Upload Excel</h2><form method='post' enctype='multipart/form-data'><input type='file' name='file'><button>Upload</button></form>"
+
+if __name__ == "__main__":
     app.run(debug=True)
