@@ -8,20 +8,15 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import re
 
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "output")
-DATA_FOLDER = os.path.join(BASE_DIR, "data")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(DATA_FOLDER, exist_ok=True)
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
@@ -34,7 +29,7 @@ FIXED_PARTY = {
     "PartyGSTIN": "05AAICG4793P1ZV",
 }
 
-FIXED_STC_BANK = {
+FIXED_BANK = {
     "PANNo": "BSSPG9414K",
     "STCGSTIN": "05BSSPG9414K1ZA",
     "STCStateCode": "5",
@@ -44,19 +39,18 @@ FIXED_STC_BANK = {
 }
 
 REQUIRED_HEADERS = [
-    "FreightBillNo","InvoiceDate","DueDate","FromLocation",
-    "ShipmentDate","LRNo","Destination","CNNumber","TruckNo",
-    "InvoiceNo","Pkgs","WeightKgs","DateArrival","DateDelivery",
-    "TruckType","FreightAmt","ToPointCharges","UnloadingCharge",
-    "SourceDetention","DestinationDetention"
+    "FreightBillNo","InvoiceDate","DueDate","FromLocation","ShipmentDate",
+    "LRNo","Destination","CNNumber","TruckNo","InvoiceNo","Pkgs","WeightKgs",
+    "DateArrival","DateDelivery","TruckType","FreightAmt","ToPointCharges",
+    "UnloadingCharge","SourceDetention","DestinationDetention"
 ]
 
-def safe_str(v):
+def s(v):
     if pd.isna(v):
         return ""
     return str(v).strip()
 
-def safe_float(v):
+def f(v):
     try:
         if pd.isna(v) or str(v).strip() == "":
             return 0.0
@@ -64,140 +58,139 @@ def safe_float(v):
     except:
         return 0.0
 
-def format_date(v):
-    s = safe_str(v)
-    if not s:
-        return ""
+def d(v):
     try:
-        dt = pd.to_datetime(s, dayfirst=True, errors="coerce")
+        dt = pd.to_datetime(v, dayfirst=True, errors="coerce")
         if pd.isna(dt):
-            return s
+            return s(v)
         return dt.strftime("%d %b %Y")
     except:
-        return s
+        return s(v)
 
-def money(v):
-    return f"{safe_float(v):.2f}"
-
-def calc_total(row):
+def total(row):
     return (
-        safe_float(row.get("FreightAmt")) +
-        safe_float(row.get("ToPointCharges")) +
-        safe_float(row.get("UnloadingCharge")) +
-        safe_float(row.get("SourceDetention")) +
-        safe_float(row.get("DestinationDetention"))
+        f(row.get("FreightAmt")) +
+        f(row.get("ToPointCharges")) +
+        f(row.get("UnloadingCharge")) +
+        f(row.get("SourceDetention")) +
+        f(row.get("DestinationDetention"))
     )
 
-def clean_filename(v):
-    v = safe_str(v)
-    v = re.sub(r'[\\/:*?"<>|]', '_', v)
-    return v if v else "NA"
-
-def get_db_conn():
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
-        return None
-    return psycopg2.connect(db_url, sslmode="require")
-
-def init_db():
-    conn = get_db_conn()
-    if not conn:
-        return
-    with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS bill_history (
-                id SERIAL PRIMARY KEY,
-                created_at TIMESTAMP DEFAULT NOW(),
-                source_excel VARCHAR(255),
-                bill_no VARCHAR(100),
-                lr_no VARCHAR(100),
-                invoice_date VARCHAR(50),
-                due_date VARCHAR(50),
-                destination VARCHAR(200),
-                total_amount NUMERIC(12,2),
-                zip_name VARCHAR(255)
-            );
-        """)
-    conn.commit()
-    conn.close()
-
-def add_history_entry_db(source_excel, df, zip_name):
-    conn = get_db_conn()
-    if not conn:
-        return
-    with conn.cursor() as cur:
-        for _, r in df.iterrows():
-            row = r.to_dict()
-            cur.execute("""
-                INSERT INTO bill_history
-                (source_excel,bill_no,lr_no,invoice_date,due_date,destination,total_amount,zip_name)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (
-                source_excel,
-                safe_str(row.get("FreightBillNo")),
-                safe_str(row.get("LRNo")),
-                format_date(row.get("InvoiceDate")),
-                format_date(row.get("DueDate")),
-                safe_str(row.get("Destination")),
-                calc_total(row),
-                zip_name
-            ))
-    conn.commit()
-    conn.close()
-
-def get_history_db(limit=10):
-    conn = get_db_conn()
-    if not conn:
-        return []
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute("""
-            SELECT * FROM bill_history
-            ORDER BY created_at DESC LIMIT %s
-        """, (limit,))
-        rows = cur.fetchall()
-    conn.close()
-    for r in rows:
-        r["created_at"] = r["created_at"].strftime("%d %b %Y %I:%M %p")
-    return rows
-
-def generate_invoice_pdf(row, pdf_path):
-    row = {**FIXED_PARTY, **FIXED_STC_BANK, **row}
+def generate_pdf(row, pdf_path):
     os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+
+    row = {**FIXED_PARTY, **FIXED_BANK, **row}
 
     W, H = landscape(A4)
     c = canvas.Canvas(pdf_path, pagesize=(W, H))
 
     LM = RM = TM = BM = 10 * mm
+
     c.setLineWidth(1)
-    c.rect(LM, BM, W - LM - RM, H - TM - BM)
+    c.rect(LM, BM, W-LM-RM, H-TM-BM)
 
     c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(W/2, H-18, "SOUTH TRANSPORT COMPANY")
     c.setFont("Helvetica", 8)
-    c.drawCentredString(W/2, H-30, "Dehradun Road Near power Grid Bhagwanpur")
-    c.drawCentredString(W/2, H-40, "Roorkee,Haridwar, U.K. 247661, India")
+    c.drawCentredString(W/2, H-32, "Dehradun Road Near power Grid Bhagwanpur")
+    c.drawCentredString(W/2, H-44, "Roorkee,Haridwar, U.K. 247661, India")
     c.setFont("Helvetica-Bold", 10)
-    c.drawCentredString(W/2, H-55, "INVOICE")
+    c.drawCentredString(W/2, H-60, "INVOICE")
 
-    logo_path = os.path.join(BASE_DIR, "logo.png")
-    if os.path.exists(logo_path):
-        img = ImageReader(logo_path)
-        c.drawImage(img, LM+5, H-95, 200, 70, mask="auto")
+    logo = os.path.join(BASE_DIR, "logo.png")
+    if os.path.exists(logo):
+        c.drawImage(ImageReader(logo), LM+6, H-120, 75*mm, 38*mm, mask="auto")
 
-    c.setFont("Helvetica", 7)
-    c.drawString(LM+5, H-130, "To,")
+    c.rect(LM+6, H-210, 110*mm, 55*mm)
     c.setFont("Helvetica-Bold", 8)
-    c.drawString(LM+5, H-145, row["PartyName"])
-    c.setFont("Helvetica", 7)
-    c.drawString(LM+5, H-158, row["PartyAddress"])
-    c.drawString(LM+5, H-170, f"{row['PartyCity']} {row['PartyState']} {row['PartyPincode']}")
-    c.setFont("Helvetica-Bold", 7)
-    c.drawString(LM+5, H-183, f"GSTIN: {row['PartyGSTIN']}")
+    c.drawString(LM+10, H-180, "To,")
+    c.drawString(LM+10, H-195, row["PartyName"])
+    c.setFont("Helvetica", 8)
+    c.drawString(LM+10, H-210+20, row["PartyAddress"])
+    c.drawString(LM+10, H-210+10, f'{row["PartyCity"]}, {row["PartyState"]} {row["PartyPincode"]}')
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(LM+10, H-210-5, f'GSTIN: {row["PartyGSTIN"]}')
 
-    c.setFont("Helvetica", 7)
-    c.drawRightString(W-50, H-145, f"Freight Bill No: {safe_str(row.get('FreightBillNo'))}")
-    c.drawRightString(W-50, H-160, f"Invoice Date: {format_date(row.get('InvoiceDate'))}")
-    c.drawRightString(W-50, H-175, f"Due Date: {format_date(row.get('DueDate'))}")
+    c.setFont("Helvetica", 8)
+    c.drawString(LM+10, H-235, f'From location: {s(row.get("FromLocation"))}')
+
+    rx = W-RM-95*mm
+    c.rect(rx, H-210, 90*mm, 55*mm)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(rx+10, H-180, f'Freight Bill No: {s(row.get("FreightBillNo"))}')
+    c.drawString(rx+10, H-195, f'Invoice Date: {d(row.get("InvoiceDate"))}')
+    c.drawString(rx+10, H-210+10, f'Due Date: {d(row.get("DueDate"))}')
+
+    tx = LM+6
+    ty = H-280
+    th = 26
+    cols = [
+        ("S.\nno.",20),("Shipment\nDate",50),("LR No.",35),("Destination",60),
+        ("CN\nNumber",45),("Truck No",45),("Invoice No",45),("Pkgs",25),
+        ("Weight\n(kgs)",35),("Date of\nArrival",40),("Date of\nDelivery",40),
+        ("Truck\nType",35),("Freight\nAmt",40),("To Point\nCharges",40),
+        ("Unloading\nCharge",40),("Source\nDetention",40),
+        ("Destination\nDetention",40),("Total\nAmount",45)
+    ]
+
+    tw = sum(w for _,w in cols)
+    scale = (W-LM-RM-12)/tw
+    cols = [(n,w*scale) for n,w in cols]
+
+    x = tx
+    c.rect(tx, ty-th, sum(w for _,w in cols), th)
+    c.setFont("Helvetica-Bold",7)
+    for n,w in cols:
+        c.line(x, ty-th, x, ty)
+        yy = ty-10
+        for p in n.split("\n"):
+            c.drawCentredString(x+w/2, yy, p)
+            yy -= 9
+        x += w
+    c.line(x, ty-th, x, ty)
+
+    row_y = ty-th-24
+    c.rect(tx, row_y, sum(w for _,w in cols), 24)
+
+    data = [
+        "1", d(row["ShipmentDate"]), s(row["LRNo"]), s(row["Destination"]),
+        s(row["CNNumber"]), s(row["TruckNo"]), s(row["InvoiceNo"]),
+        s(row["Pkgs"]), s(row["WeightKgs"]), d(row["DateArrival"]),
+        d(row["DateDelivery"]), s(row["TruckType"]),
+        f(row["FreightAmt"]), f(row["ToPointCharges"]),
+        f(row["UnloadingCharge"]), f(row["SourceDetention"]),
+        f(row["DestinationDetention"]), total(row)
+    ]
+
+    x = tx
+    c.setFont("Helvetica",7)
+    for (n,w),v in zip(cols,data):
+        c.line(x, row_y, x, row_y+24)
+        c.drawCentredString(x+w/2, row_y+7, str(v))
+        x += w
+    c.line(x, row_y, x, row_y+24)
+
+    words = num2words(int(round(total(row))), lang="en").title()+" Rupees Only"
+    c.rect(tx, row_y-20, sum(w for _,w in cols), 20)
+    c.drawString(tx+5, row_y-14, f"Total in words (Rs.) : {words}")
+    c.drawRightString(tx+sum(w for _,w in cols)-5, row_y-14, f"{total(row):.2f}")
+
+    c.rect(tx, BM+50, 85*mm, 70)
+    bank = [
+        ("Our PAN No.",row["PANNo"]),("STC GSTIN",row["STCGSTIN"]),
+        ("STC State Code",row["STCStateCode"]),("Account name",row["AccountName"]),
+        ("Account no",row["AccountNo"]),("IFS Code",row["IFSCode"])
+    ]
+    y = BM+50+70
+    for k,v in bank:
+        y -= 12
+        c.line(tx, y, tx+85*mm, y)
+        c.drawString(tx+5, y+3, k)
+        c.drawString(tx+120, y+3, v)
+
+    c.drawString(W-260, BM+90, "For SOUTH TRANSPORT COMPANY")
+    c.line(W-260, BM+60, W-120, BM+60)
+    c.drawString(W-190, BM+45, "(Authorized Signatory)")
 
     c.showPage()
     c.save()
@@ -207,47 +200,38 @@ def index():
     if request.method == "POST":
         file = request.files.get("file")
         if not file:
-            return "No file", 400
+            return "No file",400
 
         path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(path)
 
         df = pd.read_excel(path)
-        df.columns = [str(c).strip() for c in df.columns]
+        df.columns = [c.strip() for c in df.columns]
 
-        missing = [h for h in REQUIRED_HEADERS if h not in df.columns]
-        if missing:
-            return f"Missing columns {missing}", 400
+        for h in REQUIRED_HEADERS:
+            if h not in df.columns:
+                return f"Missing column {h}",400
 
-        generated = []
+        pdfs = []
 
-        for _, r in df.iterrows():
+        for _,r in df.iterrows():
             row = r.to_dict()
-            bill = clean_filename(row.get("FreightBillNo"))
-            lr = clean_filename(row.get("LRNo"))
+            bill = s(row["FreightBillNo"])
             ts = datetime.now().strftime("%H%M%S")
-            pdf_name = f"{bill}_{lr}_{ts}.pdf"
-            pdf_path = os.path.join(OUTPUT_FOLDER, pdf_name)
-            generate_invoice_pdf(row, pdf_path)
-            generated.append(pdf_path)
+            pdf_path = os.path.join(OUTPUT_FOLDER, bill, f"{bill}_{ts}.pdf")
+            generate_pdf(row, pdf_path)
+            pdfs.append(pdf_path)
 
-        zip_name = f"BILLS_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_name = f"PDF_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
         zip_path = os.path.join(OUTPUT_FOLDER, zip_name)
 
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-            for p in generated:
+        with zipfile.ZipFile(zip_path,"w",zipfile.ZIP_DEFLATED) as z:
+            for p in pdfs:
                 z.write(p, os.path.basename(p))
 
-        add_history_entry_db(file.filename, df, zip_name)
         return send_file(zip_path, as_attachment=True)
 
     return render_template("index.html")
-
-@app.route("/api/history")
-def history():
-    return jsonify(get_history_db())
-
-init_db()
 
 if __name__ == "__main__":
     app.run(debug=True)
