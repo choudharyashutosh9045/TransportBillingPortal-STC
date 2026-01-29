@@ -277,11 +277,11 @@
                 <div class="row">
                   <div>
                     <div class="uploadTitle">📌 Drag & Drop Excel Here</div>
-                    <div class="hint">Or click “Choose File”. Preview आएगा फिर Generate कर देना.</div>
+                    <div class="hint">Or click "Choose File". Preview आएगा फिर Generate कर देना.</div>
                   </div>
 
                   <div class="btns">
-                    <label class="btn2" for="file">Choose File</label>
+                    <label class="btn2" for="fileInput">Choose File</label>
                     <button id="previewBtn" class="btn2" type="button" disabled>Preview</button>
                     <button id="genBtn" class="btn" type="submit" disabled>Generate Bills</button>
                   </div>
@@ -290,7 +290,7 @@
                 <div id="fileName" class="fileName">No file selected</div>
               </div>
 
-              <input id="file" name="file" type="file" accept=".xlsx,.xls" />
+              <input id="fileInput" name="file" type="file" accept=".xlsx,.xls" />
             </form>
 
             <div class="stats">
@@ -359,7 +359,7 @@ FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</
   </div>
 
   <script>
-    const fileInput = document.getElementById("file");
+    const fileInput = document.getElementById("fileInput");
     const fileName = document.getElementById("fileName");
     const genBtn = document.getElementById("genBtn");
     const previewBtn = document.getElementById("previewBtn");
@@ -378,6 +378,7 @@ FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</
         fileName.textContent = "Selected: " + fileInput.files[0].name;
         genBtn.disabled = false;
         previewBtn.disabled = false;
+        console.log("File selected:", fileInput.files[0].name);
       } else {
         fileName.textContent = "No file selected";
         genBtn.disabled = true;
@@ -387,10 +388,19 @@ FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</
 
     fileInput.addEventListener("change", setFileName);
 
-    document.getElementById("form").addEventListener("submit", ()=>{
+    // FIXED: Form submit handler that doesn't interfere with file upload
+    document.getElementById("form").addEventListener("submit", function(e){
+      if(!fileInput.files || fileInput.files.length === 0){
+        e.preventDefault();
+        alert("Please select a file first!");
+        return false;
+      }
+      
+      console.log("Form submitting with file:", fileInput.files[0].name);
       toast.style.display = "block";
       genBtn.disabled = true;
       genBtn.textContent = "Generating...";
+      // Let the form submit normally - don't prevent default
     });
 
     // Drag-drop
