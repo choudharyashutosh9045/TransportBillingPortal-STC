@@ -19,36 +19,59 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-def wrap_text(c, text, x, y, max_width, font_name="Helvetica", font_size=7, line_height=8):
+def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
     """Wrap text to fit within max_width and return list of lines"""
-    words = str(text).split()
+    text = str(text)
+    words = text.split()
     lines = []
     current_line = ""
     
     c.setFont(font_name, font_size)
     
-    for word in words:
-        test_line = current_line + (" " if current_line else "") + word
-        if c.stringWidth(test_line, font_name, font_size) <= max_width:
-            current_line = test_line
-        else:
-            if current_line:
-                lines.append(current_line)
-            current_line = word
+    # Handle slashes specially - try to break on them
+    if '/' in text:
+        # Split on slashes and treat each part
+        parts = text.split('/')
+        for i, part in enumerate(parts):
+            test_line = current_line + part
+            if i < len(parts) - 1:  # Not last part
+                test_line += "/"
+            
+            if c.stringWidth(test_line, font_name, font_size) <= max_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = part
+                if i < len(parts) - 1:
+                    current_line += "/"
+        
+        if current_line:
+            lines.append(current_line)
+    else:
+        # Regular word wrapping
+        for word in words:
+            test_line = current_line + (" " if current_line else "") + word
+            if c.stringWidth(test_line, font_name, font_size) <= max_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+        
+        if current_line:
+            lines.append(current_line)
     
-    if current_line:
-        lines.append(current_line)
-    
-    return lines
+    return lines if lines else [text]
 
 
-def draw_wrapped_text(c, text, x, y, max_width, font_name="Helvetica", font_size=7, line_height=8):
-    """Draw wrapped text centered"""
-    lines = wrap_text(c, text, x, y, max_width, font_name, font_size, line_height)
+def draw_wrapped_text(c, text, x, y, max_width, font_name="Helvetica", font_size=7, line_height=7):
+    """Draw wrapped text centered in cell"""
+    lines = wrap_text_lines(c, text, max_width, font_name, font_size)
     
     # Calculate starting y position to center vertically
     total_height = len(lines) * line_height
-    start_y = y + (total_height / 2) - line_height/2
+    start_y = y + (total_height / 2) - (line_height / 2)
     
     c.setFont(font_name, font_size)
     for i, line in enumerate(lines):
@@ -194,11 +217,11 @@ def generate_pdf(df):
     c.setFont("Helvetica", 9)
     c.drawString(30, box_top - 125, f"From location: {df.iloc[0]['FromLocation']}")
 
-    # ================= TABLE (OPTIMIZED COLUMN WIDTHS) =================
+    # ================= TABLE (PROPERLY SIZED TO FIT IN BORDER) =================
     table_top = box_top - 155
-    table_left = 30  # Left margin
-    table_right = width - 30  # Right margin
-    table_width = table_right - table_left  # Total available width = ~812 points
+    table_left = 30
+    table_right = width - 30
+    table_width = table_right - table_left  # Available: ~812 points
     
     # Table headers
     headers = [
@@ -209,32 +232,30 @@ def generate_pdf(df):
         "Total\nAmount (Rs.)"
     ]
     
-    # OPTIMIZED Column widths - Better space distribution
-    # Total should be ~812 to fit border to border with equal margins
+    # PROPERLY SIZED Column widths - Total = 782 (fits perfectly in ~812 available)
     col_widths = [
-        25,   # 0: S.no
-        48,   # 1: Shipment Date (increased)
-        28,   # 2: LR No
-        52,   # 3: Destination (increased)
-        32,   # 4: CN Number
-        48,   # 5: Truck No (increased)
-        85,   # 6: Invoice No (INCREASED significantly - was 60, now 85)
-        28,   # 7: Pkgs
-        40,   # 8: Weight (increased)
-        48,   # 9: Date Arrival (increased)
-        48,   # 10: Date Delivery (increased)
-        48,   # 11: Truck Type (increased for wrapping)
-        52,   # 12: Freight Amt (increased)
-        52,   # 13: To Point Charges (increased)
-        52,   # 14: Unloading (increased)
-        52,   # 15: Source Detention (increased)
-        52,   # 16: Destination Detention (increased)
-        62    # 17: Total Amount (increased from end)
+        22,   # 0: S.no
+        45,   # 1: Shipment Date
+        27,   # 2: LR No
+        48,   # 3: Destination
+        30,   # 4: CN Number
+        44,   # 5: Truck No
+        70,   # 6: Invoice No (with wrapping support)
+        26,   # 7: Pkgs
+        38,   # 8: Weight
+        45,   # 9: Date Arrival
+        45,   # 10: Date Delivery
+        45,   # 11: Truck Type
+        48,   # 12: Freight Amt
+        48,   # 13: To Point Charges
+        48,   # 14: Unloading
+        48,   # 15: Source Detention
+        50,   # 16: Destination Detention
+        55    # 17: Total Amount
     ]
     
-    # Verify total width
     total_col_width = sum(col_widths)
-    print(f"Table width: {total_col_width}, Available: {table_width}")
+    print(f"✓ Table width: {total_col_width}, Available: {table_width}")
     
     # Draw header background
     c.setFillColor(colors.lightgrey)
@@ -258,9 +279,9 @@ def generate_pdf(df):
     for width_val in col_widths:
         c.line(x, table_top, x, table_top - 30)
         x += width_val
-    c.line(x, table_top, x, table_top - 30)  # Last line
+    c.line(x, table_top, x, table_top - 30)
     
-    # ================= TABLE DATA =================
+    # ================= TABLE DATA WITH PROPER WRAPPING =================
     c.setFont("Helvetica", 7)
     y = table_top - 30
     total_amount = 0
@@ -281,37 +302,36 @@ def generate_pdf(df):
         
         # Data values
         values = [
-            str(idx + 1),  # 0: S.no
-            row["ShipmentDate"].strftime("%d %b %Y"),  # 1: Shipment Date
-            str(row["LRNo"]),  # 2: LR No
-            str(row["Destination"]),  # 3: Destination
-            str(row["CNNumber"]),  # 4: CN Number
-            str(row["TruckNo"]),  # 5: Truck No
-            str(row["InvoiceNo"]),  # 6: Invoice No - NEEDS WRAPPING
-            str(int(row["Pkgs"])),  # 7: Pkgs
-            str(int(row["WeightKgs"])),  # 8: Weight
-            row["DateArrival"].strftime("%d %b %Y"),  # 9: Date Arrival
-            row["DateDelivery"].strftime("%d %b %Y"),  # 10: Date Delivery
-            str(row["TruckType"]),  # 11: Truck Type - NEEDS WRAPPING
-            f"{float(row['FreightAmt']):.2f}",  # 12: Freight
-            f"{float(row['ToPointCharges']):.2f}",  # 13: To Point
-            f"{float(row['UnloadingCharge']):.2f}",  # 14: Unloading
-            f"{float(row['SourceDetention']):.2f}",  # 15: Source
-            f"{float(row['DestinationDetention']):.2f}",  # 16: Destination
-            f"{row_total:.2f}"  # 17: Total
+            str(idx + 1),
+            row["ShipmentDate"].strftime("%d %b %Y"),
+            str(row["LRNo"]),
+            str(row["Destination"]),
+            str(row["CNNumber"]),
+            str(row["TruckNo"]),
+            str(row["InvoiceNo"]),  # Will be wrapped
+            str(int(row["Pkgs"])),
+            str(int(row["WeightKgs"])),
+            row["DateArrival"].strftime("%d %b %Y"),
+            row["DateDelivery"].strftime("%d %b %Y"),
+            str(row["TruckType"]),  # Will be wrapped
+            f"{float(row['FreightAmt']):.2f}",
+            f"{float(row['ToPointCharges']):.2f}",
+            f"{float(row['UnloadingCharge']):.2f}",
+            f"{float(row['SourceDetention']):.2f}",
+            f"{float(row['DestinationDetention']):.2f}",
+            f"{row_total:.2f}"
         ]
         
-        # Columns that need wrapping - Invoice No (6) and Truck Type (11)
-        wrap_columns = [6, 11]
+        # Draw row with wrapping for Invoice No (6) and Truck Type (11)
+        wrap_columns = {6, 11}
         
-        # Draw row
         x = table_left
         for i, val in enumerate(values):
             if i in wrap_columns:
-                # Use proper wrapping with more padding for Invoice No
-                padding = 8 if i == 6 else 6  # More padding for Invoice No
+                # Wrap text with padding
+                padding = 6
                 draw_wrapped_text(c, val, x + col_widths[i]/2, y + row_height/2, 
-                                col_widths[i] - padding, "Helvetica", 7, 8)
+                                col_widths[i] - padding, "Helvetica", 6, 7)
             else:
                 c.drawCentredString(x + col_widths[i]/2, y + row_height/2, val)
             x += col_widths[i]
@@ -324,7 +344,7 @@ def generate_pdf(df):
     for width_val in col_widths:
         c.line(x, table_top - 30, x, y)
         x += width_val
-    c.line(x, table_top - 30, x, y)  # Last line
+    c.line(x, table_top - 30, x, y)
     
     # ================= TOTAL ROW =================
     total_row_height = 25
