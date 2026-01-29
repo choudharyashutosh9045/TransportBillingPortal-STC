@@ -33,21 +33,35 @@ def wrap_text(c, text, x, y, width, leading=9):
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        # FIXED: Changed "excel" to "file" to match HTML form
-        if "file" not in request.files:
-            return "No file uploaded", 400
+        try:
+            # FIXED: Changed "excel" to "file" to match HTML form
+            if "file" not in request.files:
+                print("ERROR: No file in request.files")
+                return "No file uploaded", 400
 
-        file = request.files["file"]
-        if file.filename == "":
-            return "No file selected", 400
+            file = request.files["file"]
+            if file.filename == "":
+                print("ERROR: Empty filename")
+                return "No file selected", 400
 
-        path = os.path.join(UPLOAD_FOLDER, file.filename)
-        file.save(path)
+            print(f"File received: {file.filename}")
+            path = os.path.join(UPLOAD_FOLDER, file.filename)
+            file.save(path)
+            print(f"File saved to: {path}")
 
-        df = pd.read_excel(path)
-        pdf_path = generate_pdf(df)
+            df = pd.read_excel(path)
+            print(f"Excel loaded. Rows: {len(df)}, Columns: {list(df.columns)}")
+            
+            pdf_path = generate_pdf(df)
+            print(f"PDF generated: {pdf_path}")
 
-        return send_file(pdf_path, as_attachment=True)
+            return send_file(pdf_path, as_attachment=True)
+        
+        except Exception as e:
+            print(f"ERROR OCCURRED: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return f"Error: {str(e)}", 500
 
     return render_template("index.html")
 
