@@ -122,37 +122,37 @@ def generate_pdf(df):
         "Total\nAmount (Rs.)"
     ]
     
-    # Column widths - adjusted to fit A4
-    col_widths = [20, 35, 28, 35, 28, 38, 35, 22, 28, 35, 35, 25, 35, 35, 35, 35, 40, 40]
+    # Column widths - optimized to fit all columns in A4 width (565 points available)
+    col_widths = [18, 32, 24, 32, 24, 35, 42, 20, 26, 32, 32, 28, 32, 32, 32, 32, 38, 38]
     
     # Draw header background
     c.setFillColor(colors.lightgrey)
-    c.rect(30, table_top - 28, sum(col_widths), 28, stroke=1, fill=1)
+    c.rect(30, table_top - 30, sum(col_widths), 30, stroke=1, fill=1)
     
     # Draw headers
     c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 7)
+    c.setFont("Helvetica-Bold", 6)
     
     x = 30
     for i, header in enumerate(headers):
         # Multi-line header
         lines = header.split('\n')
-        y_offset = table_top - 10
+        y_offset = table_top - 8
         for line in lines:
             c.drawCentredString(x + col_widths[i]/2, y_offset, line)
-            y_offset -= 8
+            y_offset -= 7
         x += col_widths[i]
     
     # Draw vertical lines for header
     x = 30
     for width_val in col_widths:
-        c.line(x, table_top, x, table_top - 28)
+        c.line(x, table_top, x, table_top - 30)
         x += width_val
-    c.line(x, table_top, x, table_top - 28)  # Last line
+    c.line(x, table_top, x, table_top - 30)  # Last line
     
     # ================= TABLE DATA =================
-    c.setFont("Helvetica", 7)
-    y = table_top - 28
+    c.setFont("Helvetica", 6)
+    y = table_top - 30
     total_amount = 0
     
     for idx, row in df.iterrows():
@@ -203,9 +203,9 @@ def generate_pdf(df):
     # Draw vertical lines for data rows
     x = 30
     for width_val in col_widths:
-        c.line(x, table_top - 28, x, y)
+        c.line(x, table_top - 30, x, y)
         x += width_val
-    c.line(x, table_top - 28, x, y)  # Last line
+    c.line(x, table_top - 30, x, y)  # Last line
     
     # ================= TOTAL IN WORDS =================
     c.setFont("Helvetica-Bold", 9)
