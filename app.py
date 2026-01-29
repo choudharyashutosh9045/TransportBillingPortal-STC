@@ -515,3 +515,6 @@ init_db()
 if __name__ == "__main__":
     print("RUNNING APP VERSION: PORTAL-UI + PREVIEW + HISTORY + TEMPLATE + DB")
     app.run(debug=True)
+if __name__ == "__main__":
+    app.run(debug=True)
+
