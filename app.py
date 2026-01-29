@@ -291,28 +291,48 @@ def generate_invoice_pdf(row, pdf_path):
     c.showPage()
     c.save()
 
-@app.route("/", methods=["POST"])
-def upload():
-    file = request.files["file"]
-    path = os.path.join(UPLOAD_FOLDER, file.filename)
-    file.save(path)
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        file = request.files.get("file")
+        if not file:
+            return "No file uploaded", 400
 
-    df = pd.read_excel(path)
-    df.columns = [c.strip() for c in df.columns]
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+        file.save(filepath)
 
-    pdfs = []
-    for _, r in df.iterrows():
-        name = f'{r["FreightBillNo"]}.pdf'
-        out = os.path.join(OUTPUT_FOLDER, name)
-        generate_invoice_pdf(r.to_dict(), out)
-        pdfs.append(out)
+        df = pd.read_excel(filepath)
+        df.columns = [str(c).strip() for c in df.columns]
 
-    zip_name = os.path.join(OUTPUT_FOLDER, "Bills.zip")
-    with zipfile.ZipFile(zip_name, "w") as z:
-        for p in pdfs:
-            z.write(p, os.path.basename(p))
+        missing = [h for h in REQUIRED_HEADERS if h not in df.columns]
+        if missing:
+            return f"Missing columns in Excel: {missing}", 400
 
-    return send_file(zip_name, as_attachment=True)
+        generated = []
+        for _, r in df.iterrows():
+            row = r.to_dict()
+            bill_no = safe_str(row.get("FreightBillNo", "BILL"))
+            lr_no = safe_str(row.get("LRNo", "LR"))
+            ts = datetime.now().strftime("%H%M%S")
+
+            pdf_name = f"{bill_no}_LR{lr_no}_{ts}.pdf"
+            pdf_path = os.path.join(OUTPUT_FOLDER, pdf_name)
+
+            generate_invoice_pdf(row, pdf_path)
+            generated.append(pdf_path)
+
+        zip_name = f"Bills_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_path = os.path.join(OUTPUT_FOLDER, zip_name)
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for p in generated:
+                zf.write(p, arcname=os.path.basename(p))
+
+        add_history_entry_db(file.filename, df, zip_name)
+        return send_file(zip_path, as_attachment=True)
+
+    return render_template("index.html")
+
 
 if __name__ == "__main__":
     app.run(debug=True)
