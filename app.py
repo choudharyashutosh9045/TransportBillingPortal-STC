@@ -1,3 +1,15 @@
+import re
+
+def safe_filename(name):
+    """
+    Replace characters not allowed in Windows filenames
+    """
+    if not name:
+        return "FILE"
+    name = str(name)
+    name = name.replace("/", "_").replace("\\", "_")
+    name = re.sub(r'[^A-Za-z0-9._-]', '_', name)
+    return name
 from flask import Flask, render_template, request, send_file, jsonify
 import os
 import pandas as pd
@@ -192,10 +204,11 @@ def index():
 
         for _, r in df.iterrows():
             row = r.to_dict()
-            bill = safe_str(row.get("FreightBillNo","BILL"))
-            lr = safe_str(row.get("LRNo","LR"))
-            ts = datetime.now().strftime("%H%M%S")
-
+            bill_raw = row.get("FreightBillNo", "BILL")
+            lr_raw = row.get("LRNo", "LR")
+            
+            bill = safe_filename(bill_raw)
+            lr = safe_filename(lr_raw)
             pdf_name = f"{bill}_{lr}_{ts}.pdf"
             pdf_path = os.path.join(OUTPUT_FOLDER, pdf_name)
 
