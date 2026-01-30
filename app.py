@@ -1,7 +1,6 @@
-from flask import Flask, render_template, request, send_file, jsonify, session
+from flask import Flask, render_template, request, send_file, jsonify
 import pandas as pd
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from num2words import num2words
@@ -12,12 +11,11 @@ from datetime import datetime
 import json
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here-change-in-production'
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "output"
 LOGO_PATH = "static/logo.png"
-HISTORY_FILE = "download_history.json"
+HISTORY_FILE = "history.json"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -25,33 +23,33 @@ os.makedirs("static", exist_ok=True)
 
 
 def load_history():
-    """Load download history from file"""
+    """Load history from JSON file"""
     if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, 'r') as f:
-            return json.load(f)
+        try:
+            with open(HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return []
     return []
 
 
 def save_history(entry):
-    """Save new entry to download history"""
+    """Save history entry"""
     history = load_history()
-    history.insert(0, entry)  # Add to beginning
-    # Keep only last 50 entries
-    history = history[:50]
+    history.insert(0, entry)
+    history = history[:10]  # Keep last 10
     with open(HISTORY_FILE, 'w') as f:
         json.dump(history, f, indent=2)
 
 
 def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
-    """Wrap text to fit within max_width and return list of lines"""
+    """Wrap text to fit within max_width"""
     text = str(text)
-    words = text.split()
     lines = []
     current_line = ""
     
     c.setFont(font_name, font_size)
     
-    # Handle slashes specially - try to break on them
     if '/' in text:
         parts = text.split('/')
         for i, part in enumerate(parts):
@@ -71,6 +69,7 @@ def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
         if current_line:
             lines.append(current_line)
     else:
+        words = text.split()
         for word in words:
             test_line = current_line + (" " if current_line else "") + word
             if c.stringWidth(test_line, font_name, font_size) <= max_width:
@@ -87,7 +86,7 @@ def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
 
 
 def draw_wrapped_text(c, text, x, y, max_width, font_name="Helvetica", font_size=7, line_height=7):
-    """Draw wrapped text centered in cell"""
+    """Draw wrapped text centered"""
     lines = wrap_text_lines(c, text, max_width, font_name, font_size)
     
     total_height = len(lines) * line_height
@@ -98,70 +97,15 @@ def draw_wrapped_text(c, text, x, y, max_width, font_name="Helvetica", font_size
         c.drawCentredString(x, start_y - (i * line_height), line)
 
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/")
 def index():
-    if request.method == "POST":
-        try:
-            if "file" not in request.files:
-                return jsonify({"error": "No file uploaded"}), 400
-
-            file = request.files["file"]
-            if file.filename == "":
-                return jsonify({"error": "No file selected"}), 400
-
-            print(f"File received: {file.filename}")
-            path = os.path.join(UPLOAD_FOLDER, file.filename)
-            file.save(path)
-            
-            # Store filename in session for preview
-            session['last_upload'] = file.filename
-
-            df = pd.read_excel(path)
-            print(f"Excel loaded. Rows: {len(df)}")
-            
-            # Convert dates
-            date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate', 'DateArrival', 'DateDelivery']
-            for col in date_columns:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
-            
-            # Generate PDFs
-            pdf_files = generate_multiple_pdfs(df)
-            print(f"Generated {len(pdf_files)} PDF(s)")
-            
-            # Save to history
-            history_entry = {
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "filename": file.filename,
-                "bills_count": len(pdf_files),
-                "bills": [os.path.basename(f) for f in pdf_files]
-            }
-            save_history(history_entry)
-            
-            # Return response
-            if len(pdf_files) == 1:
-                return send_file(pdf_files[0], as_attachment=True)
-            
-            # Multiple PDFs - create zip
-            zip_path = os.path.join(OUTPUT_FOLDER, "invoices.zip")
-            with zipfile.ZipFile(zip_path, 'w') as zipf:
-                for pdf_file in pdf_files:
-                    zipf.write(pdf_file, os.path.basename(pdf_file))
-            
-            return send_file(zip_path, as_attachment=True)
-        
-        except Exception as e:
-            print(f"ERROR: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return jsonify({"error": str(e)}), 500
-
+    """Serve the main page"""
     return render_template("index.html")
 
 
-@app.route("/preview", methods=["POST"])
-def preview():
-    """Generate preview data from uploaded Excel"""
+@app.route("/", methods=["POST"])
+def generate_bills():
+    """Generate PDF bills from Excel"""
     try:
         if "file" not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
@@ -170,10 +114,13 @@ def preview():
         if file.filename == "":
             return jsonify({"error": "No file selected"}), 400
 
-        path = os.path.join(UPLOAD_FOLDER, f"preview_{file.filename}")
+        print(f"📄 File received: {file.filename}")
+        path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(path)
 
+        # Read Excel
         df = pd.read_excel(path)
+        print(f"✓ Excel loaded: {len(df)} rows")
         
         # Convert dates
         date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate', 'DateArrival', 'DateDelivery']
@@ -181,90 +128,107 @@ def preview():
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], errors='coerce')
         
-        # Group by FreightBillNo
-        bills_data = []
-        grouped = df.groupby('FreightBillNo')
+        # Generate PDFs
+        pdf_files = generate_multiple_pdfs(df)
+        print(f"✓ Generated {len(pdf_files)} PDF(s)")
         
-        for bill_no, group_df in grouped:
-            total = 0
-            rows = []
+        # Save to history
+        history_entry = {
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "file": file.filename,
+            "rows": len(df)
+        }
+        save_history(history_entry)
+        
+        # Create ZIP
+        zip_path = os.path.join(OUTPUT_FOLDER, "Bills.zip")
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for pdf_file in pdf_files:
+                zipf.write(pdf_file, os.path.basename(pdf_file))
+        
+        print(f"✓ ZIP created: {zip_path}")
+        return send_file(zip_path, as_attachment=True, download_name="Bills.zip")
+        
+    except Exception as e:
+        print(f"❌ ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/preview", methods=["POST"])
+def preview():
+    """Preview Excel data"""
+    try:
+        if "file" not in request.files:
+            return jsonify({"ok": False, "error": "No file uploaded"}), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"ok": False, "error": "No file selected"}), 400
+
+        path = os.path.join(UPLOAD_FOLDER, f"preview_{file.filename}")
+        file.save(path)
+
+        # Read Excel
+        df = pd.read_excel(path)
+        
+        # Convert dates for display
+        date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate', 'DateArrival', 'DateDelivery']
+        for col in date_columns:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+        
+        # Calculate total amounts
+        rows = []
+        for idx, row in df.head(10).iterrows():  # Preview first 10 rows
+            total = (
+                float(row.get("FreightAmt", 0)) + 
+                float(row.get("ToPointCharges", 0)) + 
+                float(row.get("UnloadingCharge", 0)) + 
+                float(row.get("SourceDetention", 0)) + 
+                float(row.get("DestinationDetention", 0))
+            )
             
-            for idx, row in group_df.iterrows():
-                row_total = (
-                    float(row["FreightAmt"]) + 
-                    float(row["ToPointCharges"]) + 
-                    float(row["UnloadingCharge"]) + 
-                    float(row["SourceDetention"]) + 
-                    float(row["DestinationDetention"])
-                )
-                total += row_total
-                
-                rows.append({
-                    "sno": idx + 1,
-                    "shipment_date": row["ShipmentDate"].strftime("%d %b %Y"),
-                    "lr_no": str(row["LRNo"]),
-                    "destination": str(row["Destination"]),
-                    "truck_no": str(row["TruckNo"]),
-                    "invoice_no": str(row["InvoiceNo"]),
-                    "pkgs": int(row["Pkgs"]),
-                    "weight": int(row["WeightKgs"]),
-                    "truck_type": str(row["TruckType"]),
-                    "freight": float(row["FreightAmt"]),
-                    "total": row_total
-                })
-            
-            bills_data.append({
-                "bill_no": str(bill_no),
-                "invoice_date": group_df.iloc[0]["InvoiceDate"].strftime("%d %b %Y"),
-                "due_date": group_df.iloc[0]["DueDate"].strftime("%d-%m-%y"),
-                "from_location": str(group_df.iloc[0]["FromLocation"]),
-                "rows": rows,
-                "total": total,
-                "row_count": len(rows)
+            rows.append({
+                "FreightBillNo": str(row.get("FreightBillNo", "")),
+                "LRNo": str(row.get("LRNo", "")),
+                "TruckNo": str(row.get("TruckNo", "")),
+                "InvoiceNo": str(row.get("InvoiceNo", "")),
+                "Destination": str(row.get("Destination", "")),
+                "TotalAmount": f"₹{total:.2f}"
             })
         
         # Clean up preview file
         os.remove(path)
         
         return jsonify({
-            "success": True,
-            "bills": bills_data,
-            "total_bills": len(bills_data)
+            "ok": True,
+            "count": len(df),
+            "rows": rows
         })
         
     except Exception as e:
         print(f"Preview ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
-@app.route("/history")
+@app.route("/api/history")
 def get_history():
-    """Get download history"""
+    """Get history"""
     history = load_history()
-    return jsonify({"history": history})
-
-
-@app.route("/download/<path:filename>")
-def download_file(filename):
-    """Download a specific file from output folder"""
-    try:
-        file_path = os.path.join(OUTPUT_FOLDER, filename)
-        if os.path.exists(file_path):
-            return send_file(file_path, as_attachment=True)
-        return jsonify({"error": "File not found"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify(history)
 
 
 def generate_multiple_pdfs(df):
-    """Generate separate PDF for each unique FreightBillNo"""
+    """Generate separate PDF for each FreightBillNo"""
     pdf_files = []
     grouped = df.groupby('FreightBillNo')
     
     for bill_no, group_df in grouped:
-        print(f"Generating PDF for Bill: {bill_no}")
+        print(f"  → Generating: {bill_no}")
         pdf_path = generate_pdf(group_df.reset_index(drop=True))
         pdf_files.append(pdf_path)
     
@@ -272,6 +236,7 @@ def generate_multiple_pdfs(df):
 
 
 def generate_pdf(df):
+    """Generate single PDF"""
     bill_no = str(df.iloc[0]["FreightBillNo"]).replace("/", "_")
     pdf_path = f"{OUTPUT_FOLDER}/{bill_no}.pdf"
 
@@ -294,8 +259,8 @@ def generate_pdf(df):
         else:
             c.setFont("Helvetica-Bold", 10)
             c.drawString(55, height - 80, "[LOGO]")
-    except Exception as e:
-        print(f"Logo error: {e}")
+    except:
+        pass
 
     # Header
     c.setFont("Helvetica-Bold", 16)
@@ -348,10 +313,9 @@ def generate_pdf(df):
     ]
     
     col_widths = [22, 45, 27, 48, 30, 44, 70, 26, 38, 45, 45, 45, 48, 48, 48, 48, 50, 55]
-    
     total_col_width = sum(col_widths)
     
-    # Header background
+    # Header
     c.setFillColor(colors.lightgrey)
     c.rect(table_left, table_top - 30, total_col_width, 30, stroke=1, fill=1)
     
@@ -493,9 +457,8 @@ def generate_pdf(df):
     c.line(width - 180, sig_y - 52, width - 35, sig_y - 52)
 
     c.save()
-    print(f"✓ PDF saved: {pdf_path}")
     return pdf_path
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
