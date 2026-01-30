@@ -218,8 +218,12 @@ def preview():
 @app.route("/api/history")
 def get_history():
     """Get history"""
-    history = load_history()
-    return jsonify(history)
+    try:
+        history = load_history()
+        return jsonify(history if history else [])
+    except Exception as e:
+        print(f"History error: {e}")
+        return jsonify([])
 
 
 def generate_multiple_pdfs(df):
