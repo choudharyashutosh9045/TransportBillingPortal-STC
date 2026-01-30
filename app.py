@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, jsonify, session
 import pandas as pd
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
@@ -8,15 +8,38 @@ from num2words import num2words
 import os
 from PIL import Image
 import zipfile
+from datetime import datetime
+import json
 
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-here-change-in-production'
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "output"
 LOGO_PATH = "static/logo.png"
+HISTORY_FILE = "download_history.json"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+os.makedirs("static", exist_ok=True)
+
+
+def load_history():
+    """Load download history from file"""
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, 'r') as f:
+            return json.load(f)
+    return []
+
+
+def save_history(entry):
+    """Save new entry to download history"""
+    history = load_history()
+    history.insert(0, entry)  # Add to beginning
+    # Keep only last 50 entries
+    history = history[:50]
+    with open(HISTORY_FILE, 'w') as f:
+        json.dump(history, f, indent=2)
 
 
 def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
@@ -30,11 +53,10 @@ def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
     
     # Handle slashes specially - try to break on them
     if '/' in text:
-        # Split on slashes and treat each part
         parts = text.split('/')
         for i, part in enumerate(parts):
             test_line = current_line + part
-            if i < len(parts) - 1:  # Not last part
+            if i < len(parts) - 1:
                 test_line += "/"
             
             if c.stringWidth(test_line, font_name, font_size) <= max_width:
@@ -49,7 +71,6 @@ def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
         if current_line:
             lines.append(current_line)
     else:
-        # Regular word wrapping
         for word in words:
             test_line = current_line + (" " if current_line else "") + word
             if c.stringWidth(test_line, font_name, font_size) <= max_width:
@@ -69,7 +90,6 @@ def draw_wrapped_text(c, text, x, y, max_width, font_name="Helvetica", font_size
     """Draw wrapped text centered in cell"""
     lines = wrap_text_lines(c, text, max_width, font_name, font_size)
     
-    # Calculate starting y position to center vertically
     total_height = len(lines) * line_height
     start_y = y + (total_height / 2) - (line_height / 2)
     
@@ -83,37 +103,46 @@ def index():
     if request.method == "POST":
         try:
             if "file" not in request.files:
-                print("ERROR: No file in request.files")
-                return "No file uploaded", 400
+                return jsonify({"error": "No file uploaded"}), 400
 
             file = request.files["file"]
             if file.filename == "":
-                print("ERROR: Empty filename")
-                return "No file selected", 400
+                return jsonify({"error": "No file selected"}), 400
 
             print(f"File received: {file.filename}")
             path = os.path.join(UPLOAD_FOLDER, file.filename)
             file.save(path)
-            print(f"File saved to: {path}")
+            
+            # Store filename in session for preview
+            session['last_upload'] = file.filename
 
             df = pd.read_excel(path)
-            print(f"Excel loaded. Rows: {len(df)}, Columns: {list(df.columns)}")
+            print(f"Excel loaded. Rows: {len(df)}")
             
-            # Convert dates to datetime if they're not already
+            # Convert dates
             date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate', 'DateArrival', 'DateDelivery']
             for col in date_columns:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
             
-            # Generate PDFs for each unique FreightBillNo
+            # Generate PDFs
             pdf_files = generate_multiple_pdfs(df)
             print(f"Generated {len(pdf_files)} PDF(s)")
             
-            # If only one PDF, send it directly
+            # Save to history
+            history_entry = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "filename": file.filename,
+                "bills_count": len(pdf_files),
+                "bills": [os.path.basename(f) for f in pdf_files]
+            }
+            save_history(history_entry)
+            
+            # Return response
             if len(pdf_files) == 1:
                 return send_file(pdf_files[0], as_attachment=True)
             
-            # If multiple PDFs, create a zip file
+            # Multiple PDFs - create zip
             zip_path = os.path.join(OUTPUT_FOLDER, "invoices.zip")
             with zipfile.ZipFile(zip_path, 'w') as zipf:
                 for pdf_file in pdf_files:
@@ -122,23 +151,120 @@ def index():
             return send_file(zip_path, as_attachment=True)
         
         except Exception as e:
-            print(f"ERROR OCCURRED: {str(e)}")
+            print(f"ERROR: {str(e)}")
             import traceback
             traceback.print_exc()
-            return f"Error: {str(e)}", 500
+            return jsonify({"error": str(e)}), 500
 
     return render_template("index.html")
+
+
+@app.route("/preview", methods=["POST"])
+def preview():
+    """Generate preview data from uploaded Excel"""
+    try:
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "No file selected"}), 400
+
+        path = os.path.join(UPLOAD_FOLDER, f"preview_{file.filename}")
+        file.save(path)
+
+        df = pd.read_excel(path)
+        
+        # Convert dates
+        date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate', 'DateArrival', 'DateDelivery']
+        for col in date_columns:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+        
+        # Group by FreightBillNo
+        bills_data = []
+        grouped = df.groupby('FreightBillNo')
+        
+        for bill_no, group_df in grouped:
+            total = 0
+            rows = []
+            
+            for idx, row in group_df.iterrows():
+                row_total = (
+                    float(row["FreightAmt"]) + 
+                    float(row["ToPointCharges"]) + 
+                    float(row["UnloadingCharge"]) + 
+                    float(row["SourceDetention"]) + 
+                    float(row["DestinationDetention"])
+                )
+                total += row_total
+                
+                rows.append({
+                    "sno": idx + 1,
+                    "shipment_date": row["ShipmentDate"].strftime("%d %b %Y"),
+                    "lr_no": str(row["LRNo"]),
+                    "destination": str(row["Destination"]),
+                    "truck_no": str(row["TruckNo"]),
+                    "invoice_no": str(row["InvoiceNo"]),
+                    "pkgs": int(row["Pkgs"]),
+                    "weight": int(row["WeightKgs"]),
+                    "truck_type": str(row["TruckType"]),
+                    "freight": float(row["FreightAmt"]),
+                    "total": row_total
+                })
+            
+            bills_data.append({
+                "bill_no": str(bill_no),
+                "invoice_date": group_df.iloc[0]["InvoiceDate"].strftime("%d %b %Y"),
+                "due_date": group_df.iloc[0]["DueDate"].strftime("%d-%m-%y"),
+                "from_location": str(group_df.iloc[0]["FromLocation"]),
+                "rows": rows,
+                "total": total,
+                "row_count": len(rows)
+            })
+        
+        # Clean up preview file
+        os.remove(path)
+        
+        return jsonify({
+            "success": True,
+            "bills": bills_data,
+            "total_bills": len(bills_data)
+        })
+        
+    except Exception as e:
+        print(f"Preview ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/history")
+def get_history():
+    """Get download history"""
+    history = load_history()
+    return jsonify({"history": history})
+
+
+@app.route("/download/<path:filename>")
+def download_file(filename):
+    """Download a specific file from output folder"""
+    try:
+        file_path = os.path.join(OUTPUT_FOLDER, filename)
+        if os.path.exists(file_path):
+            return send_file(file_path, as_attachment=True)
+        return jsonify({"error": "File not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 def generate_multiple_pdfs(df):
     """Generate separate PDF for each unique FreightBillNo"""
     pdf_files = []
-    
-    # Group by FreightBillNo
     grouped = df.groupby('FreightBillNo')
     
     for bill_no, group_df in grouped:
-        print(f"\n=== Generating PDF for Bill: {bill_no} ===")
+        print(f"Generating PDF for Bill: {bill_no}")
         pdf_path = generate_pdf(group_df.reset_index(drop=True))
         pdf_files.append(pdf_path)
     
@@ -152,34 +278,26 @@ def generate_pdf(df):
     c = canvas.Canvas(pdf_path, pagesize=landscape(A4))
     width, height = landscape(A4)
 
-    # ================= OUTER BORDER =================
     margin = 15
     c.rect(margin, margin, width - 2*margin, height - 2*margin, stroke=1, fill=0)
 
-    # ================= LOGO WITH ERROR HANDLING =================
+    # Logo
     try:
         if os.path.exists(LOGO_PATH):
             try:
                 img = Image.open(LOGO_PATH)
                 img.verify()
-                print(f"✓ Logo found and verified: {LOGO_PATH}")
-                
                 c.drawImage(LOGO_PATH, 55, height - 140, width=100, height=80, preserveAspectRatio=True)
-                print("✓ Logo successfully added to PDF")
-                
-            except Exception as img_error:
-                print(f"⚠ Logo file is corrupted or invalid: {img_error}")
+            except:
                 c.setFont("Helvetica-Bold", 10)
                 c.drawString(55, height - 80, "[LOGO]")
         else:
-            print(f"⚠ Logo not found at: {LOGO_PATH}")
             c.setFont("Helvetica-Bold", 10)
             c.drawString(55, height - 80, "[LOGO]")
-            
     except Exception as e:
-        print(f"⚠ Error loading logo: {e}")
+        print(f"Logo error: {e}")
 
-    # ================= HEADER =================
+    # Header
     c.setFont("Helvetica-Bold", 16)
     c.drawCentredString(width / 2, height - 70, "SOUTH TRANSPORT COMPANY")
     
@@ -190,7 +308,7 @@ def generate_pdf(df):
     c.setFont("Helvetica-Bold", 12)
     c.drawCentredString(width / 2, height - 125, "INVOICE")
 
-    # ================= LEFT BOX (To Details) =================
+    # Left Box
     box_top = height - 160
     c.rect(30, box_top - 110, 260, 110, stroke=1, fill=0)
     
@@ -203,7 +321,7 @@ def generate_pdf(df):
     c.drawString(40, box_top - 65, "Roorkee, Uttarakhand 247656")
     c.drawString(40, box_top - 85, "GSTIN: 05AAICG4793P1ZV")
 
-    # ================= RIGHT BOX (Bill Details) =================
+    # Right Box
     c.rect(width - 290, box_top - 110, 260, 110, stroke=1, fill=0)
     
     c.setFont("Helvetica-Bold", 10)
@@ -213,17 +331,14 @@ def generate_pdf(df):
     c.drawString(width - 280, box_top - 45, f"Invoice Date:      {df.iloc[0]['InvoiceDate'].strftime('%d %b %Y')}")
     c.drawString(width - 280, box_top - 65, f"Due Date:          {df.iloc[0]['DueDate'].strftime('%d-%m-%y')}")
 
-    # ================= FROM LOCATION =================
     c.setFont("Helvetica", 9)
     c.drawString(30, box_top - 125, f"From location: {df.iloc[0]['FromLocation']}")
 
-    # ================= TABLE (PROPERLY SIZED TO FIT IN BORDER) =================
+    # Table
     table_top = box_top - 155
     table_left = 30
     table_right = width - 30
-    table_width = table_right - table_left  # Available: ~812 points
     
-    # Table headers
     headers = [
         "S.\nno.", "Shipment\nDate", "LR\nNo.", "Destination", "CN\nNumber",
         "Truck No", "Invoice No", "Pkgs", "Weight\n(Kgs)", "Date of\nArrival",
@@ -232,36 +347,14 @@ def generate_pdf(df):
         "Total\nAmount (Rs.)"
     ]
     
-    # PROPERLY SIZED Column widths - Total = 782 (fits perfectly in ~812 available)
-    col_widths = [
-        22,   # 0: S.no
-        45,   # 1: Shipment Date
-        27,   # 2: LR No
-        48,   # 3: Destination
-        30,   # 4: CN Number
-        44,   # 5: Truck No
-        70,   # 6: Invoice No (with wrapping support)
-        26,   # 7: Pkgs
-        38,   # 8: Weight
-        45,   # 9: Date Arrival
-        45,   # 10: Date Delivery
-        45,   # 11: Truck Type
-        48,   # 12: Freight Amt
-        48,   # 13: To Point Charges
-        48,   # 14: Unloading
-        48,   # 15: Source Detention
-        50,   # 16: Destination Detention
-        55    # 17: Total Amount
-    ]
+    col_widths = [22, 45, 27, 48, 30, 44, 70, 26, 38, 45, 45, 45, 48, 48, 48, 48, 50, 55]
     
     total_col_width = sum(col_widths)
-    print(f"✓ Table width: {total_col_width}, Available: {table_width}")
     
-    # Draw header background
+    # Header background
     c.setFillColor(colors.lightgrey)
     c.rect(table_left, table_top - 30, total_col_width, 30, stroke=1, fill=1)
     
-    # Draw headers
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 7)
     
@@ -274,14 +367,13 @@ def generate_pdf(df):
             y_offset -= 8
         x += col_widths[i]
     
-    # Draw vertical lines for header
     x = table_left
     for width_val in col_widths:
         c.line(x, table_top, x, table_top - 30)
         x += width_val
     c.line(x, table_top, x, table_top - 30)
     
-    # ================= TABLE DATA WITH PROPER WRAPPING =================
+    # Data
     c.setFont("Helvetica", 7)
     y = table_top - 30
     total_amount = 0
@@ -290,7 +382,6 @@ def generate_pdf(df):
         row_height = 35
         y -= row_height
         
-        # Calculate row total
         row_total = (
             float(row["FreightAmt"]) + 
             float(row["ToPointCharges"]) + 
@@ -300,7 +391,6 @@ def generate_pdf(df):
         )
         total_amount += row_total
         
-        # Data values
         values = [
             str(idx + 1),
             row["ShipmentDate"].strftime("%d %b %Y"),
@@ -308,12 +398,12 @@ def generate_pdf(df):
             str(row["Destination"]),
             str(row["CNNumber"]),
             str(row["TruckNo"]),
-            str(row["InvoiceNo"]),  # Will be wrapped
+            str(row["InvoiceNo"]),
             str(int(row["Pkgs"])),
             str(int(row["WeightKgs"])),
             row["DateArrival"].strftime("%d %b %Y"),
             row["DateDelivery"].strftime("%d %b %Y"),
-            str(row["TruckType"]),  # Will be wrapped
+            str(row["TruckType"]),
             f"{float(row['FreightAmt']):.2f}",
             f"{float(row['ToPointCharges']):.2f}",
             f"{float(row['UnloadingCharge']):.2f}",
@@ -322,38 +412,32 @@ def generate_pdf(df):
             f"{row_total:.2f}"
         ]
         
-        # Draw row with wrapping for Invoice No (6) and Truck Type (11)
         wrap_columns = {6, 11}
         
         x = table_left
         for i, val in enumerate(values):
             if i in wrap_columns:
-                # Wrap text with padding
-                padding = 6
                 draw_wrapped_text(c, val, x + col_widths[i]/2, y + row_height/2, 
-                                col_widths[i] - padding, "Helvetica", 6, 7)
+                                col_widths[i] - 6, "Helvetica", 6, 7)
             else:
                 c.drawCentredString(x + col_widths[i]/2, y + row_height/2, val)
             x += col_widths[i]
         
-        # Draw horizontal line
         c.line(table_left, y, table_left + total_col_width, y)
     
-    # Draw vertical lines for data rows
     x = table_left
     for width_val in col_widths:
         c.line(x, table_top - 30, x, y)
         x += width_val
     c.line(x, table_top - 30, x, y)
     
-    # ================= TOTAL ROW =================
+    # Total Row
     total_row_height = 25
     y -= total_row_height
     
     c.rect(table_left, y, total_col_width, total_row_height, stroke=1, fill=0)
     
     c.setFont("Helvetica-Bold", 8)
-    # Convert to Rupees and Paise
     rupees = int(total_amount)
     paise = int((total_amount - rupees) * 100)
     
@@ -370,12 +454,12 @@ def generate_pdf(df):
     
     c.line(total_col_x, y, total_col_x, y + total_row_height)
 
-    # ================= NOTE =================
+    # Note
     c.setFont("Helvetica", 7)
     note_y = y - 15
     c.drawString(30, note_y, 'Any changes or discrepancies should be highlighted within 5 working days else it would be considered final. Please send all remittance details to "southtprk@gmail.com".')
 
-    # ================= BANK DETAILS TABLE =================
+    # Bank Details
     bank_y = note_y - 25
     
     bank_details = [
@@ -399,7 +483,7 @@ def generate_pdf(df):
         c.drawString(35, y_pos - 10, label)
         c.drawString(135, y_pos - 10, value)
 
-    # ================= SIGNATURE =================
+    # Signature
     sig_y = bank_y - 15
     c.setFont("Helvetica-Bold", 9)
     c.drawRightString(width - 35, sig_y, "For SOUTH TRANSPORT COMPANY")
@@ -409,7 +493,7 @@ def generate_pdf(df):
     c.line(width - 180, sig_y - 52, width - 35, sig_y - 52)
 
     c.save()
-    print(f"✓ PDF saved successfully: {pdf_path}")
+    print(f"✓ PDF saved: {pdf_path}")
     return pdf_path
 
 
