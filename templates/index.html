@@ -6,100 +6,118 @@
   <title>STC Transport Billing Portal</title>
   <style>
     :root{
-      --bg:#0b1220;
+      --bg:#0a0f1e;
       --panel:#0f172a;
       --card:rgba(255,255,255,.04);
-      --border:rgba(255,255,255,.10);
+      --border:rgba(255,255,255,.12);
       --text:#e5e7eb;
       --muted:#94a3b8;
-      --accent:#22c55e;
-      --accent2:#38bdf8;
-      --shadow: 0 20px 60px rgba(0,0,0,.40);
-      --radius:22px;
+      --accent:#10b981;
+      --accent2:#3b82f6;
+      --shadow: 0 20px 60px rgba(0,0,0,.50);
+      --radius:20px;
     }
     *{box-sizing:border-box}
     body{
       margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       background:
-        radial-gradient(1200px 600px at 15% 0%, rgba(56,189,248,.18), transparent 55%),
-        radial-gradient(1000px 550px at 85% 10%, rgba(34,197,94,.15), transparent 60%),
+        radial-gradient(1200px 600px at 15% 0%, rgba(59,130,246,.16), transparent 55%),
+        radial-gradient(1000px 550px at 85% 10%, rgba(16,185,129,.14), transparent 60%),
         var(--bg);
       color:var(--text);
       min-height:100vh;
+      background-attachment: fixed;
     }
     .layout{
       display:grid;
-      grid-template-columns: 280px 1fr;
+      grid-template-columns: 300px 1fr;
       min-height:100vh;
     }
     .sidebar{
-      padding:22px 18px;
+      padding:24px 20px;
       border-right:1px solid var(--border);
-      background: linear-gradient(180deg, rgba(255,255,255,.03), transparent 70%);
+      background: linear-gradient(180deg, rgba(255,255,255,.04), transparent 70%);
+      backdrop-filter: blur(10px);
     }
     .brand{
       display:flex;
-      gap:12px;
+      gap:14px;
       align-items:center;
-      padding:14px 14px;
+      padding:16px;
       border:1px solid var(--border);
       border-radius: var(--radius);
-      background: rgba(255,255,255,.03);
+      background: linear-gradient(135deg, rgba(59,130,246,.08), rgba(16,185,129,.08));
       box-shadow: var(--shadow);
     }
     .brandIcon{
-      width:48px;height:48px;border-radius:16px;
+      width:52px;height:52px;border-radius:16px;
       background: linear-gradient(135deg, var(--accent2), var(--accent));
       display:flex;align-items:center;justify-content:center;
-      font-weight:900;
-      color:#07101f;
+      font-weight:900;font-size:20px;
+      color:#fff;
       letter-spacing:.5px;
+      box-shadow: 0 8px 24px rgba(16,185,129,.25);
     }
-    .brand h1{font-size:14px;margin:0;line-height:1.2;}
-    .brand p{margin:3px 0 0 0;font-size:12px;color:var(--muted);}
-    .nav{margin-top:18px;display:flex;flex-direction:column;gap:10px;}
+    .brand h1{font-size:15px;margin:0;line-height:1.3;font-weight:700;}
+    .brand p{margin:4px 0 0 0;font-size:12px;color:var(--muted);}
+    .nav{margin-top:20px;display:flex;flex-direction:column;gap:8px;}
     .nav a{
       text-decoration:none;color:var(--text);
-      padding:12px 14px;border-radius:16px;
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.02);
-      display:flex;align-items:center;gap:10px;
-      transition:.18s;
+      padding:13px 16px;border-radius:14px;
+      border:1px solid transparent;
+      background: rgba(255,255,255,.03);
+      display:flex;align-items:center;gap:12px;
+      transition:.2s;font-size:14px;font-weight:500;
     }
-    .nav a:hover{transform: translateY(-1px);background: rgba(255,255,255,.05);}
+    .nav a:hover{
+      transform: translateX(4px);
+      background: rgba(255,255,255,.06);
+      border-color: var(--border);
+    }
+    .nav a.active{
+      background: linear-gradient(135deg, rgba(59,130,246,.12), rgba(16,185,129,.12));
+      border-color: rgba(16,185,129,.3);
+    }
     .chip{
-      margin-left:auto;font-size:11px;padding:4px 9px;border-radius:999px;
-      border:1px solid var(--border);background: rgba(255,255,255,.03);color:var(--muted);
+      margin-left:auto;font-size:10px;padding:4px 10px;border-radius:999px;
+      border:1px solid rgba(16,185,129,.3);
+      background: rgba(16,185,129,.15);
+      color:var(--accent);font-weight:700;
     }
     .sideFooter{
-      margin-top:18px;padding:14px;border-radius: var(--radius);
-      border:1px solid var(--border);background: rgba(15,23,42,.45);
-      color:var(--muted);font-size:12px;line-height:1.4;
+      margin-top:20px;padding:16px;border-radius: var(--radius);
+      border:1px solid var(--border);background: rgba(15,23,42,.50);
+      color:var(--muted);font-size:12px;line-height:1.5;
     }
 
-    .main{padding:26px;}
+    .main{padding:28px 32px;}
     .topbar{
-      display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;
+      display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px;
     }
-    .title h2{margin:0;font-size:22px;letter-spacing:.2px;}
-    .title p{margin:6px 0 0 0;color:var(--muted);font-size:13px;}
+    .title h2{margin:0;font-size:26px;letter-spacing:-.3px;font-weight:700;}
+    .title p{margin:8px 0 0 0;color:var(--muted);font-size:14px;}
 
     .topRight{
       display:flex;
       align-items:center;
-      gap:12px;
+      gap:14px;
     }
 
     .search{
       display:flex;
       align-items:center;
-      gap:10px;
-      padding:10px 12px;
+      gap:12px;
+      padding:11px 16px;
       border-radius:999px;
       border:1px solid var(--border);
-      background: rgba(255,255,255,.03);
-      min-width:320px;
+      background: rgba(255,255,255,.04);
+      min-width:350px;
+      transition:.2s;
+    }
+    .search:focus-within{
+      border-color: var(--accent2);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
     }
     .search input{
       width:100%;
@@ -107,119 +125,162 @@
       outline:none;
       background:transparent;
       color:var(--text);
-      font-size:13px;
+      font-size:14px;
     }
     .profile{
-      width:42px;height:42px;border-radius:16px;
+      width:44px;height:44px;border-radius:16px;
       border:1px solid var(--border);
-      background: rgba(255,255,255,.03);
+      background: linear-gradient(135deg, rgba(59,130,246,.2), rgba(16,185,129,.2));
       display:flex;align-items:center;justify-content:center;
-      font-weight:900;
-      color:var(--muted);
+      font-weight:900;font-size:16px;
+      color:var(--text);
     }
 
-    .grid{display:grid;grid-template-columns: 1.25fr .75fr;gap:18px;}
+    .grid{display:grid;grid-template-columns: 1.3fr .7fr;gap:24px;}
     .card{
       border:1px solid var(--border);
       border-radius: var(--radius);
       background: rgba(255,255,255,.03);
       box-shadow: var(--shadow);
       overflow:hidden;
+      backdrop-filter: blur(10px);
     }
-    .cardHead{padding:18px 18px 0 18px;}
-    .cardHead h3{margin:0;font-size:15px;letter-spacing:.2px;}
-    .cardHead p{margin:8px 0 0 0;font-size:12px;color:var(--muted);line-height:1.4;}
-    .cardBody{padding:18px;}
+    .cardHead{padding:20px 22px;}
+    .cardHead h3{margin:0;font-size:17px;letter-spacing:-.2px;font-weight:700;}
+    .cardHead p{margin:6px 0 0 0;font-size:13px;color:var(--muted);line-height:1.5;}
+    .cardBody{padding:0 22px 22px 22px;}
 
     .btn{
-      cursor:pointer;border:none;border-radius:16px;padding:12px 14px;
-      font-weight:900;color:#06101f;
+      cursor:pointer;border:none;border-radius:14px;padding:13px 20px;
+      font-weight:700;color:#fff;font-size:14px;
       background: linear-gradient(135deg, var(--accent2), var(--accent));
-      transition:.18s;
-      box-shadow: 0 12px 40px rgba(34,197,94,.12);
+      transition:.2s;
+      box-shadow: 0 8px 24px rgba(16,185,129,.2);
     }
-    .btn:hover{transform: translateY(-1px);}
-    .btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+    .btn:hover{transform: translateY(-2px);box-shadow: 0 12px 32px rgba(16,185,129,.3);}
+    .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
     .btn2{
-      cursor:pointer;border:1px solid var(--border);border-radius:16px;padding:12px 14px;
-      font-weight:800;color:var(--text);background: rgba(255,255,255,.03);transition:.18s;
+      cursor:pointer;border:1px solid var(--border);border-radius:14px;padding:13px 20px;
+      font-weight:700;color:var(--text);background: rgba(255,255,255,.04);transition:.2s;
+      font-size:14px;
     }
-    .btn2:hover{background: rgba(255,255,255,.06);}
+    .btn2:hover{background: rgba(255,255,255,.08);transform: translateY(-1px);}
 
     .drop{
-      border:2px dashed rgba(56,189,248,.35);
+      border:2px dashed rgba(59,130,246,.4);
       border-radius: var(--radius);
-      padding:18px;
-      background: rgba(15,23,42,.55);
-      transition:.2s;
+      padding:24px;
+      background: rgba(15,23,42,.60);
+      transition:.3s;
     }
     .drop.drag{
-      border-color: rgba(34,197,94,.60);
-      background: rgba(34,197,94,.07);
+      border-color: rgba(16,185,129,.7);
+      background: rgba(16,185,129,.1);
+      transform: scale(1.01);
     }
-    .row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
-    .uploadTitle{font-weight:900;font-size:14px;}
-    .hint{margin-top:8px;color:var(--muted);font-size:12px;line-height:1.45;}
-    .btns{display:flex;gap:10px;align-items:center;}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+    .uploadTitle{font-weight:800;font-size:15px;}
+    .hint{margin-top:8px;color:var(--muted);font-size:13px;line-height:1.5;}
+    .btns{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
     input[type=file]{display:none;}
-    .fileName{margin-top:10px;font-size:12px;color:var(--muted);}
-
-    .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;}
-    .stat{
-      padding:14px;border-radius:18px;border:1px solid var(--border);
-      background: rgba(15,23,42,.55);
+    .fileName{
+      margin-top:12px;font-size:13px;color:var(--muted);
+      padding:10px 14px;background:rgba(255,255,255,.04);
+      border-radius:10px;border:1px solid var(--border);
     }
-    .stat .k{color:var(--muted);font-size:12px;}
-    .stat .v{font-size:18px;font-weight:900;margin-top:6px;}
+
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;}
+    .stat{
+      padding:16px;border-radius:16px;border:1px solid var(--border);
+      background: linear-gradient(135deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+    }
+    .stat .k{color:var(--muted);font-size:12px;font-weight:500;}
+    .stat .v{font-size:22px;font-weight:800;margin-top:8px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
 
     .mono{
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size:12px;color:rgba(229,231,235,.95);
-      white-space:pre-wrap;line-height:1.45;
-      background: rgba(15,23,42,.55);
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:12px;color:rgba(229,231,235,.92);
+      white-space:pre-wrap;line-height:1.6;
+      background: rgba(15,23,42,.60);
       border:1px solid var(--border);
-      padding:14px;border-radius:18px;
+      padding:16px;border-radius:14px;
     }
 
     .tableWrap{
-      margin-top:14px;
+      margin-top:16px;
       border:1px solid var(--border);
-      border-radius:18px;
+      border-radius:16px;
       overflow:hidden;
-      background: rgba(15,23,42,.55);
+      background: rgba(15,23,42,.60);
     }
     table{
       width:100%;
       border-collapse:collapse;
-      font-size:12px;
+      font-size:13px;
     }
     th, td{
-      padding:10px 10px;
+      padding:12px 14px;
       border-bottom:1px solid rgba(255,255,255,.06);
       color:rgba(229,231,235,.92);
       text-align:left;
       vertical-align:top;
     }
     th{
-      font-size:11px;
+      font-size:12px;font-weight:700;
       color:var(--muted);
-      background: rgba(255,255,255,.02);
+      background: rgba(255,255,255,.04);
     }
-    .miniNote{margin-top:12px;color:var(--muted);font-size:12px;line-height:1.45;}
+    tr:hover{background: rgba(255,255,255,.02);}
+    .miniNote{margin-top:14px;color:var(--muted);font-size:13px;line-height:1.6;}
     .toast{
-      margin-top:12px;padding:12px 14px;border-radius:18px;
-      border:1px solid rgba(34,197,94,.35);
-      background: rgba(34,197,94,.08);
+      margin-top:14px;padding:14px 18px;border-radius:14px;
+      border:1px solid rgba(16,185,129,.4);
+      background: rgba(16,185,129,.12);
       color: rgba(229,231,235,.95);
-      font-size:12px;display:none;
+      font-size:13px;display:none;font-weight:500;
     }
 
-    @media (max-width: 980px){
+    .historyItem{
+      padding:14px;border-radius:12px;border:1px solid var(--border);
+      background: rgba(255,255,255,.03);margin-bottom:10px;
+      transition:.2s;cursor:pointer;
+    }
+    .historyItem:hover{
+      background: rgba(255,255,255,.06);
+      transform: translateX(4px);
+    }
+    .histTime{font-size:11px;color:var(--muted);margin-bottom:6px;}
+    .histFile{font-size:13px;font-weight:700;margin-bottom:4px;}
+    .histDetails{font-size:12px;color:var(--muted);}
+    .histBills{
+      margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;
+    }
+    .billChip{
+      font-size:11px;padding:4px 10px;border-radius:8px;
+      background: rgba(59,130,246,.15);color:var(--accent2);
+      border:1px solid rgba(59,130,246,.3);
+      cursor:pointer;transition:.2s;
+    }
+    .billChip:hover{
+      background: rgba(59,130,246,.25);
+      transform: translateY(-1px);
+    }
+
+    @media (max-width: 1100px){
       .layout{grid-template-columns:1fr;}
       .sidebar{display:none;}
       .grid{grid-template-columns:1fr;}
       .search{min-width:100%;}
     }
+
+    .emptyState{
+      text-align:center;padding:40px 20px;color:var(--muted);
+    }
+    .emptyState svg{margin-bottom:16px;}
   </style>
 </head>
 
@@ -229,22 +290,22 @@
       <div class="brand">
         <div class="brandIcon">STC</div>
         <div>
-          <h1>Transport Billing Portal</h1>
+          <h1>Transport Billing</h1>
           <p>Excel → PDF Bills (ZIP)</p>
         </div>
       </div>
 
       <nav class="nav">
-        <a href="#"><span>📄</span> Generate Bills <span class="chip">LIVE</span></a>
-        <a href="/download-template"><span>📥</span> Download Excel Template</a>
-        <a href="#"><span>🧾</span> Recent Bills</a>
+        <a href="#" class="active"><span>📄</span> Generate Bills <span class="chip">LIVE</span></a>
+        <a href="/download-template"><span>📥</span> Download Template</a>
+        <a href="#recent" onclick="scrollToRecent(event)"><span>🧾</span> Recent Bills</a>
         <a href="#"><span>⚙️</span> Settings</a>
       </nav>
 
       <div class="sideFooter">
         <b>Company:</b> South Transport Company<br/>
         <b>Mode:</b> Non-GST • Per LR<br/>
-        <b>System:</b> Localhost (127.0.0.1)
+        <b>System:</b> Flask Server
       </div>
     </aside>
 
@@ -252,7 +313,7 @@
       <div class="topbar">
         <div class="title">
           <h2>STC Billing Dashboard</h2>
-          <p>Preview Excel rows, then generate PDFs in one click.</p>
+          <p>Upload Excel, preview data, generate professional PDF invoices instantly.</p>
         </div>
 
         <div class="topRight">
@@ -267,8 +328,8 @@
         <!-- LEFT: Upload -->
         <section class="card">
           <div class="cardHead">
-            <h3>Upload Excel & Generate Bills</h3>
-            <p>First preview rows → then generate Bills.zip</p>
+            <h3>📤 Upload & Generate Bills</h3>
+            <p>First preview your Excel data → then generate Bills.zip with all PDFs</p>
           </div>
 
           <div class="cardBody">
@@ -276,18 +337,18 @@
               <div id="drop" class="drop">
                 <div class="row">
                   <div>
-                    <div class="uploadTitle">📌 Drag & Drop Excel Here</div>
-                    <div class="hint">Or click "Choose File". Preview आएगा फिर Generate कर देना.</div>
+                    <div class="uploadTitle">📌 Drag & Drop Excel File</div>
+                    <div class="hint">Or click "Choose File". Preview आएगा, फिर Generate करें.</div>
                   </div>
 
                   <div class="btns">
                     <label class="btn2" for="fileInput">Choose File</label>
-                    <button id="previewBtn" class="btn2" type="button" disabled>Preview</button>
-                    <button id="genBtn" class="btn" type="submit" disabled>Generate Bills</button>
+                    <button id="previewBtn" class="btn2" type="button" disabled>👁️ Preview</button>
+                    <button id="genBtn" class="btn" type="submit" disabled>⚡ Generate Bills</button>
                   </div>
                 </div>
 
-                <div id="fileName" class="fileName">No file selected</div>
+                <div id="fileName" class="fileName">📂 No file selected</div>
               </div>
 
               <input id="fileInput" name="file" type="file" accept=".xlsx,.xls" />
@@ -309,13 +370,13 @@
             </div>
 
             <div class="miniNote">
-              ✔ Party details fixed in system (Excel में नहीं भरना)<br/>
-              ✔ Blank charges = 0 रखें
+              ✔ Party details are fixed in system (Excel में नहीं भरना)<br/>
+              ✔ Blank charges will default to 0
             </div>
 
             <div id="previewArea" style="display:none;">
-              <div class="miniNote" style="margin-top:14px;">
-                <b>Preview (Top 10 Rows)</b>
+              <div class="miniNote" style="margin-top:18px;">
+                <b>📊 Preview Data (Search to filter)</b>
               </div>
 
               <div class="tableWrap">
@@ -340,18 +401,20 @@
         <!-- RIGHT: Recent + Excel format -->
         <section class="card">
           <div class="cardHead">
-            <h3>Recent Generated Bills</h3>
-            <p>Last 10 uploads history</p>
+            <h3 id="recent">🕒 Recent Generated Bills</h3>
+            <p>Last 10 uploads history - click to download PDFs</p>
           </div>
           <div class="cardBody">
-            <div id="history" class="mono">Loading...</div>
+            <div id="history"></div>
 
-            <div class="miniNote" style="margin-top:16px;">
-              <b>Excel Columns Format</b>
+            <div class="miniNote" style="margin-top:20px;">
+              <b>📋 Required Excel Columns</b>
             </div>
-            <div class="mono" style="margin-top:10px;">FreightBillNo,InvoiceDate,DueDate,FromLocation,
-ShipmentDate,LRNo,Destination,CNNumber,TruckNo,InvoiceNo,Pkgs,WeightKgs,DateArrival,DateDelivery,TruckType,
-FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</div>
+            <div class="mono" style="margin-top:12px;">FreightBillNo, InvoiceDate, DueDate, FromLocation,
+ShipmentDate, LRNo, Destination, CNNumber, TruckNo, InvoiceNo,
+Pkgs, WeightKgs, DateArrival, DateDelivery, TruckType,
+FreightAmt, ToPointCharges, UnloadingCharge,
+SourceDetention, DestinationDetention</div>
           </div>
         </section>
       </div>
@@ -371,16 +434,16 @@ FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</
     const historyBox = document.getElementById("history");
     const searchInput = document.getElementById("search");
 
-    let previewRows = [];
+    let allPreviewRows = [];
 
     function setFileName(){
       if(fileInput.files && fileInput.files.length > 0){
-        fileName.textContent = "Selected: " + fileInput.files[0].name;
+        fileName.innerHTML = `✅ Selected: <b>${fileInput.files[0].name}</b>`;
         genBtn.disabled = false;
         previewBtn.disabled = false;
         console.log("File selected:", fileInput.files[0].name);
       } else {
-        fileName.textContent = "No file selected";
+        fileName.innerHTML = "📂 No file selected";
         genBtn.disabled = true;
         previewBtn.disabled = true;
       }
@@ -388,7 +451,6 @@ FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</
 
     fileInput.addEventListener("change", setFileName);
 
-    // FIXED: Form submit handler that doesn't interfere with file upload
     document.getElementById("form").addEventListener("submit", function(e){
       if(!fileInput.files || fileInput.files.length === 0){
         e.preventDefault();
@@ -399,8 +461,7 @@ FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</
       console.log("Form submitting with file:", fileInput.files[0].name);
       toast.style.display = "block";
       genBtn.disabled = true;
-      genBtn.textContent = "Generating...";
-      // Let the form submit normally - don't prevent default
+      genBtn.textContent = "⏳ Generating...";
     });
 
     // Drag-drop
@@ -433,27 +494,52 @@ FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</
       try{
         const res = await fetch("/api/history");
         const data = await res.json();
+        
         if(!data || data.length === 0){
-          historyBox.textContent = "No history yet.";
+          historyBox.innerHTML = '<div class="emptyState">📭<br/>No history yet. Generate your first bill!</div>';
           return;
         }
-        let out = "";
+        
+        let html = "";
         data.forEach((h, i)=>{
-          out += `${i+1}. ${h.time}  |  ${h.file}  |  Rows: ${h.rows}\n`;
+          html += `
+            <div class="historyItem">
+              <div class="histTime">${h.time}</div>
+              <div class="histFile">📄 ${h.file}</div>
+              <div class="histDetails">Rows: ${h.rows} | Bills: ${h.bills ? h.bills.length : 0}</div>
+              ${h.bills && h.bills.length > 0 ? `
+                <div class="histBills">
+                  ${h.bills.map(b => `<span class="billChip" onclick="downloadBill('${b.replace(/\//g, '_')}.pdf')">${b}</span>`).join('')}
+                </div>
+              ` : ''}
+            </div>
+          `;
         });
-        historyBox.textContent = out;
+        historyBox.innerHTML = html;
       }catch(e){
-        historyBox.textContent = "History load failed.";
+        historyBox.innerHTML = '<div class="emptyState">❌ History load failed</div>';
+        console.error(e);
       }
     }
     loadHistory();
+
+    // Download specific bill
+    function downloadBill(filename){
+      window.location.href = `/api/bills/${filename}`;
+    }
+
+    // Scroll to recent section
+    function scrollToRecent(e){
+      e.preventDefault();
+      document.getElementById('recent').scrollIntoView({behavior: 'smooth'});
+    }
 
     // Preview button
     previewBtn.addEventListener("click", async ()=>{
       if(!fileInput.files || fileInput.files.length === 0) return;
 
       previewBtn.disabled = true;
-      previewBtn.textContent = "Loading...";
+      previewBtn.textContent = "⏳ Loading...";
 
       const fd = new FormData();
       fd.append("file", fileInput.files[0]);
@@ -465,54 +551,64 @@ FreightAmt,ToPointCharges,UnloadingCharge,SourceDetention,DestinationDetention</
         if(!data.ok){
           alert(data.error || "Preview failed");
           previewBtn.disabled = false;
-          previewBtn.textContent = "Preview";
+          previewBtn.textContent = "👁️ Preview";
           return;
         }
 
         rowsCount.textContent = data.count;
-        previewRows = data.rows || [];
-        renderPreview(previewRows);
+        allPreviewRows = data.rows || [];
+        renderPreview(allPreviewRows);
 
         previewArea.style.display = "block";
       }catch(e){
-        alert("Preview error");
+        alert("Preview error: " + e.message);
+        console.error(e);
       }finally{
         previewBtn.disabled = false;
-        previewBtn.textContent = "Preview";
+        previewBtn.textContent = "👁️ Preview";
       }
     });
 
     function renderPreview(rows){
+      if(!rows || rows.length === 0){
+        previewTable.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);">No matching rows found</td></tr>';
+        return;
+      }
+
       previewTable.innerHTML = "";
       rows.forEach(r=>{
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${r.FreightBillNo || ""}</td>
+          <td><b>${r.FreightBillNo || ""}</b></td>
           <td>${r.LRNo || ""}</td>
           <td>${r.TruckNo || ""}</td>
           <td>${r.InvoiceNo || ""}</td>
           <td>${r.Destination || ""}</td>
-          <td>${r.TotalAmount || ""}</td>
+          <td style="color:var(--accent);font-weight:700;">${r.TotalAmount || ""}</td>
         `;
         previewTable.appendChild(tr);
       });
     }
 
-    // Search in preview table
+    // FIXED: Search in preview table - now searches ALL rows
     searchInput.addEventListener("input", ()=>{
       const q = (searchInput.value || "").toLowerCase().trim();
+      
       if(!q){
-        renderPreview(previewRows);
+        renderPreview(allPreviewRows);
         return;
       }
-      const filtered = previewRows.filter(r=>{
+      
+      const filtered = allPreviewRows.filter(r=>{
         return (
+          String(r.FreightBillNo || "").toLowerCase().includes(q) ||
           String(r.LRNo || "").toLowerCase().includes(q) ||
           String(r.TruckNo || "").toLowerCase().includes(q) ||
           String(r.InvoiceNo || "").toLowerCase().includes(q) ||
           String(r.Destination || "").toLowerCase().includes(q)
         );
       });
+      
       renderPreview(filtered);
     });
   </script>
