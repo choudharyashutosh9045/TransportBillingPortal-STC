@@ -20,14 +20,14 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 os.makedirs("static/logos", exist_ok=True)
 
-# Company configurations
+# Company configurations — only STC and Transin
 COMPANIES = {
     "stc": {
         "name": "SOUTH TRANSPORT COMPANY",
         "address_line1": "Dehradun Road Near power Grid Bhagwanpur",
         "address_line2": "Roorkee, Haridwar, U.K. 247661, India",
         "logo": "static/logos/stc_logo.png",
-        "type": "basic",  # Basic format
+        "type": "basic",
         "customer": {
             "name": "Grivaa Springs Private Ltd.",
             "address_line1": "Khasra no 135, Tansipur, Roorkee",
@@ -44,56 +44,12 @@ COMPANIES = {
             "email": "southtprk@gmail.com"
         }
     },
-    "ntc": {
-        "name": "NORTH TRANSPORT COMPANY",
-        "address_line1": "Industrial Area, Sector 5",
-        "address_line2": "Delhi, 110001, India",
-        "logo": "static/logos/ntc_logo.png",
-        "type": "basic",
-        "customer": {
-            "name": "ABC Industries Ltd.",
-            "address_line1": "Plot No 45, Industrial Estate",
-            "address_line2": "Delhi, 110002",
-            "gstin": "07AAICA1234P1ZV"
-        },
-        "bank": {
-            "pan": "ABCDN1234K",
-            "gstin": "07ABCDN1234K1ZA",
-            "state_code": "7",
-            "account_name": "North Transport Company",
-            "account_no": "123456789012",
-            "ifsc": "HDFC0001234",
-            "email": "contact@ntc.com"
-        }
-    },
-    "wtc": {
-        "name": "WEST TRANSPORT COMPANY",
-        "address_line1": "Ring Road, Navrangpura",
-        "address_line2": "Ahmedabad, Gujarat 380009, India",
-        "logo": "static/logos/wtc_logo.png",
-        "type": "basic",
-        "customer": {
-            "name": "Gujarat Trading Co.",
-            "address_line1": "CG Road, Ahmedabad",
-            "address_line2": "Gujarat 380006",
-            "gstin": "24AABCG5678P1ZV"
-        },
-        "bank": {
-            "pan": "WESTG5678K",
-            "gstin": "24WESTG5678K1ZA",
-            "state_code": "24",
-            "account_name": "West Transport Company",
-            "account_no": "987654321098",
-            "ifsc": "SBIN0001234",
-            "email": "info@wtc.com"
-        }
-    },
     "transin": {
         "name": "TRANSIN LOGISTICS PRIVATE LIMITED",
         "address_line1": "Plot No. 17 & 18, Vishnu Avenue, Flat No.304, 3rd Floor, VIP Hills, Jaihind Enclave",
         "address_line2": "Madhapur, Hyderabad 500081, Telangana, India",
         "logo": "static/logos/transin_logo.png",
-        "type": "transin",  # Special Transin format
+        "type": "transin",
         "customer": {
             "name": "Balaji Action Buildwell Pvt Ltd.",
             "address_line1": "Sitarganj-U.K",
@@ -111,13 +67,23 @@ COMPANIES = {
             "email": "receivables@onmove.in"
         },
         "gst_note": 'Freight Claimed is exclusive of GST which has to be submitted by you to the Government. "We hereby confirm that GST ITC for providing the taxable service has not been taken by us under the provisions mentioned in of the GST Rules, 2017". Tax is payable on reverse charge basis.',
-        "digital_signature": "Anchit Maheshwari"
+        "digital_signature": {
+            "name": "Anchit Maheshwari",
+            "cn": "Anchit Maheshwari",
+            "o": "Transin Logistics Solutions Private Limited",
+            "ou": "Delta Business",
+            "email": "anchit.maheshwari@onmove.in",
+            "c": "IN"
+        }
     }
 }
 
 
+# ---------------------------------------------------------------------------
+# Utility helpers
+# ---------------------------------------------------------------------------
+
 def load_history():
-    """Load history from JSON file"""
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, 'r') as f:
@@ -128,7 +94,6 @@ def load_history():
 
 
 def save_history(entry):
-    """Save history entry"""
     history = load_history()
     history.insert(0, entry)
     history = history[:20]
@@ -136,19 +101,40 @@ def save_history(entry):
         json.dump(history, f, indent=2)
 
 
+def safe_parse_date(val):
+    """Robust date parser – handles dd-mm-yyyy, yyyy-mm-dd AND ddmmyyyy (no separator)."""
+    if pd.isna(val):
+        return pd.NaT
+    s = str(val).strip()
+    # 8-digit no-separator string  →  try ddmmyyyy first, then yyyymmdd
+    if s.isdigit() and len(s) == 8:
+        try:
+            return pd.to_datetime(s, format='%d%m%Y')
+        except ValueError:
+            try:
+                return pd.to_datetime(s, format='%Y%m%d')
+            except ValueError:
+                return pd.NaT
+    # Everything else – dayfirst=True so "09-12-2025" → Dec 9
+    return pd.to_datetime(val, errors='coerce', dayfirst=True)
+
+
+def parse_date_column(series):
+    """Apply safe_parse_date to an entire pandas Series."""
+    return series.apply(safe_parse_date)
+
+
 def create_excel_template(company_code="stc"):
     """Create Excel template file based on company type"""
     template_file = f"excel_template_{company_code}.xlsx"
-    
+
     if company_code == "transin":
-        # Transin format - NO DateArrival, DateDelivery, TruckType
         columns = [
             'FreightBillNo', 'InvoiceDate', 'DueDate', 'FromLocation',
             'ShipmentDate', 'LRNo', 'Destination', 'CNNumber', 'TruckNo',
-            'InvoiceNo', 'Pkgs', 'WeightKgs', 'FreightAmt', 'ToPointCharges', 
+            'InvoiceNo', 'Pkgs', 'WeightKgs', 'FreightAmt', 'ToPointCharges',
             'UnloadingCharge', 'SourceDetention', 'DestinationDetention'
         ]
-        
         sample_data = {
             'FreightBillNo': ['DBLT1-2526-228'],
             'InvoiceDate': ['2026-01-18'],
@@ -169,7 +155,6 @@ def create_excel_template(company_code="stc"):
             'DestinationDetention': [0]
         }
     else:
-        # Basic format - with all fields
         columns = [
             'FreightBillNo', 'InvoiceDate', 'DueDate', 'FromLocation',
             'ShipmentDate', 'LRNo', 'Destination', 'CNNumber', 'TruckNo',
@@ -177,7 +162,6 @@ def create_excel_template(company_code="stc"):
             'TruckType', 'FreightAmt', 'ToPointCharges', 'UnloadingCharge',
             'SourceDetention', 'DestinationDetention'
         ]
-        
         sample_data = {
             'FreightBillNo': ['FB/2025/001'],
             'InvoiceDate': ['2025-01-15'],
@@ -200,28 +184,30 @@ def create_excel_template(company_code="stc"):
             'SourceDetention': [0],
             'DestinationDetention': [0]
         }
-    
+
     df = pd.DataFrame(sample_data)
     df.to_excel(template_file, index=False)
     print(f"✓ Template created: {template_file}")
     return template_file
 
 
+# ---------------------------------------------------------------------------
+# Text-wrapping helpers (shared by both PDF generators)
+# ---------------------------------------------------------------------------
+
 def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
-    """Wrap text to fit within max_width"""
-    text = str(text)
+    """Wrap text to fit within max_width. Newlines are normalised to '/' first."""
+    text = str(text).replace('\n', '/')
     lines = []
     current_line = ""
-    
     c.setFont(font_name, font_size)
-    
+
     if '/' in text:
         parts = text.split('/')
         for i, part in enumerate(parts):
             test_line = current_line + part
             if i < len(parts) - 1:
                 test_line += "/"
-            
             if c.stringWidth(test_line, font_name, font_size) <= max_width:
                 current_line = test_line
             else:
@@ -230,7 +216,6 @@ def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
                 current_line = part
                 if i < len(parts) - 1:
                     current_line += "/"
-        
         if current_line:
             lines.append(current_line)
     else:
@@ -243,42 +228,42 @@ def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
                 if current_line:
                     lines.append(current_line)
                 current_line = word
-        
         if current_line:
             lines.append(current_line)
-    
+
     return lines if lines else [text]
 
 
 def draw_wrapped_text(c, text, x, y, max_width, font_name="Helvetica", font_size=7, line_height=7):
-    """Draw wrapped text centered"""
+    """Draw wrapped text, vertically centred at (x, y)."""
     lines = wrap_text_lines(c, text, max_width, font_name, font_size)
-    
     total_height = len(lines) * line_height
     start_y = y + (total_height / 2) - (line_height / 2)
-    
     c.setFont(font_name, font_size)
     for i, line in enumerate(lines):
         c.drawCentredString(x, start_y - (i * line_height), line)
 
 
+# ---------------------------------------------------------------------------
+# Flask routes
+# ---------------------------------------------------------------------------
+
 @app.route("/")
 def index():
-    """Serve the main page"""
     return render_template("index.html", companies=COMPANIES)
 
 
 @app.route("/download-template")
 def download_template():
-    """Download Excel template"""
     company_code = request.args.get("company", "stc")
+    if company_code not in COMPANIES:
+        company_code = "stc"
     template_file = create_excel_template(company_code)
     return send_file(template_file, as_attachment=True, download_name=f"{company_code.upper()}_Template.xlsx")
 
 
 @app.route("/api/companies")
 def get_companies():
-    """Get list of all companies"""
     companies_list = []
     for code, data in COMPANIES.items():
         companies_list.append({
@@ -291,7 +276,6 @@ def get_companies():
 
 @app.route("/api/company/<company_code>")
 def get_company(company_code):
-    """Get specific company details"""
     if company_code in COMPANIES:
         return jsonify(COMPANIES[company_code])
     return jsonify({"error": "Company not found"}), 404
@@ -299,14 +283,13 @@ def get_company(company_code):
 
 @app.route("/", methods=["POST"])
 def generate_bills():
-    """Generate PDF bills from Excel"""
     try:
         if "file" not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files["file"]
         company_code = request.form.get("company", "stc")
-        
+
         if file.filename == "":
             return jsonify({"error": "No file selected"}), 400
 
@@ -315,28 +298,22 @@ def generate_bills():
 
         print(f"📄 File received: {file.filename}")
         print(f"🏢 Company: {COMPANIES[company_code]['name']}")
-        
+
         path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(path)
 
-        # Read Excel
         df = pd.read_excel(path)
         print(f"✓ Excel loaded: {len(df)} rows")
-        
-        # Convert dates
-        date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate']
-        if company_code != "transin":
-            date_columns.extend(['DateArrival', 'DateDelivery'])
-            
+
+        # Robust date parsing for ALL date columns that exist
+        date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate', 'DateArrival', 'DateDelivery']
         for col in date_columns:
             if col in df.columns:
-                df[col] = pd.to_datetime(df[col], errors='coerce')
-        
-        # Generate PDFs
+                df[col] = parse_date_column(df[col])
+
         pdf_files = generate_multiple_pdfs(df, company_code)
         print(f"✓ Generated {len(pdf_files)} PDF(s)")
-        
-        # Save to history
+
         bill_numbers = df['FreightBillNo'].unique().tolist()
         history_entry = {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -348,17 +325,16 @@ def generate_bills():
             "pdf_files": [os.path.basename(f) for f in pdf_files]
         }
         save_history(history_entry)
-        
-        # Create ZIP
+
         zip_filename = f"{company_code.upper()}_Bills.zip"
         zip_path = os.path.join(OUTPUT_FOLDER, zip_filename)
         with zipfile.ZipFile(zip_path, 'w') as zipf:
             for pdf_file in pdf_files:
                 zipf.write(pdf_file, os.path.basename(pdf_file))
-        
+
         print(f"✓ ZIP created: {zip_path}")
         return send_file(zip_path, as_attachment=True, download_name=zip_filename)
-        
+
     except Exception as e:
         print(f"❌ ERROR: {str(e)}")
         import traceback
@@ -368,7 +344,6 @@ def generate_bills():
 
 @app.route("/preview", methods=["POST"])
 def preview():
-    """Preview Excel data"""
     try:
         if "file" not in request.files:
             return jsonify({"ok": False, "error": "No file uploaded"}), 400
@@ -380,26 +355,22 @@ def preview():
         path = os.path.join(UPLOAD_FOLDER, f"preview_{file.filename}")
         file.save(path)
 
-        # Read Excel
         df = pd.read_excel(path)
-        
-        # Convert dates
+
         date_columns = ['InvoiceDate', 'DueDate', 'ShipmentDate', 'DateArrival', 'DateDelivery']
         for col in date_columns:
             if col in df.columns:
-                df[col] = pd.to_datetime(df[col], errors='coerce')
-        
-        # Get ALL rows
+                df[col] = parse_date_column(df[col])
+
         rows = []
         for idx, row in df.iterrows():
             total = (
-                float(row.get("FreightAmt", 0)) + 
-                float(row.get("ToPointCharges", 0)) + 
-                float(row.get("UnloadingCharge", 0)) + 
-                float(row.get("SourceDetention", 0)) + 
+                float(row.get("FreightAmt", 0)) +
+                float(row.get("ToPointCharges", 0)) +
+                float(row.get("UnloadingCharge", 0)) +
+                float(row.get("SourceDetention", 0)) +
                 float(row.get("DestinationDetention", 0))
             )
-            
             rows.append({
                 "FreightBillNo": str(row.get("FreightBillNo", "")),
                 "LRNo": str(row.get("LRNo", "")),
@@ -408,15 +379,10 @@ def preview():
                 "Destination": str(row.get("Destination", "")),
                 "TotalAmount": f"₹{total:.2f}"
             })
-        
+
         os.remove(path)
-        
-        return jsonify({
-            "ok": True,
-            "count": len(df),
-            "rows": rows
-        })
-        
+        return jsonify({"ok": True, "count": len(df), "rows": rows})
+
     except Exception as e:
         print(f"Preview ERROR: {str(e)}")
         import traceback
@@ -426,7 +392,6 @@ def preview():
 
 @app.route("/api/history")
 def get_history():
-    """Get history"""
     try:
         history = load_history()
         return jsonify(history if history else [])
@@ -437,7 +402,6 @@ def get_history():
 
 @app.route("/api/bills/<filename>")
 def get_bill(filename):
-    """Download a specific bill PDF"""
     try:
         file_path = os.path.join(OUTPUT_FOLDER, filename)
         if os.path.exists(file_path):
@@ -448,33 +412,35 @@ def get_bill(filename):
         return jsonify({"error": str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# PDF generation – dispatch
+# ---------------------------------------------------------------------------
+
 def generate_multiple_pdfs(df, company_code):
-    """Generate separate PDF for each FreightBillNo"""
     pdf_files = []
     grouped = df.groupby('FreightBillNo')
-    
     for bill_no, group_df in grouped:
         print(f"  → Generating: {bill_no}")
         pdf_path = generate_pdf(group_df.reset_index(drop=True), company_code)
         pdf_files.append(pdf_path)
-    
     return pdf_files
 
 
 def generate_pdf(df, company_code):
-    """Generate PDF based on company type"""
     company = COMPANIES[company_code]
-    
     if company.get("type") == "transin":
         return generate_transin_pdf(df, company_code)
     else:
         return generate_basic_pdf(df, company_code)
 
 
+# ---------------------------------------------------------------------------
+# Transin PDF  (fixed layout – compact, dynamic row heights, DN signature)
+# ---------------------------------------------------------------------------
+
 def generate_transin_pdf(df, company_code):
-    """Generate Transin Logistics format PDF"""
     company = COMPANIES[company_code]
-    
+
     bill_no = str(df.iloc[0]["FreightBillNo"]).replace("/", "_")
     pdf_path = f"{OUTPUT_FOLDER}/{company_code}_{bill_no}.pdf"
 
@@ -482,114 +448,126 @@ def generate_transin_pdf(df, company_code):
     width, height = landscape(A4)
 
     margin = 15
-    c.rect(margin, margin, width - 2*margin, height - 2*margin, stroke=1, fill=0)
+    c.rect(margin, margin, width - 2 * margin, height - 2 * margin, stroke=1, fill=0)
 
-    # Header
+    # ── Header ──────────────────────────────────────────────────────────────
     c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(width / 2, height - 50, company["name"])
-    
-    c.setFont("Helvetica", 8)
-    c.drawCentredString(width / 2, height - 65, company["address_line1"])
-    c.drawCentredString(width / 2, height - 78, company["address_line2"])
-    
-    c.setFont("Helvetica-Bold", 12)
-    c.drawCentredString(width / 2, height - 100, "INVOICE")
-    
-    c.setFont("Helvetica", 7)
-    c.drawCentredString(width / 2, height - 113, "@ This is system generated invoice")
+    c.drawCentredString(width / 2, height - 36, company["name"])
 
-    # Left Box - Customer
-    box_top = height - 140
-    c.rect(30, box_top - 90, 260, 90, stroke=1, fill=0)
-    
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(40, box_top - 18, "To,")
-    
-    c.setFont("Helvetica", 8)
-    c.drawString(40, box_top - 32, company["customer"]["name"])
-    c.drawString(40, box_top - 45, company["customer"]["address_line1"])
-    c.drawString(40, box_top - 58, company["customer"]["address_line2"])
-    c.drawString(40, box_top - 73, f"GSTIN: {company['customer']['gstin']}")
+    c.setFont("Helvetica", 7.5)
+    c.drawCentredString(width / 2, height - 50, company["address_line1"])
+    c.drawCentredString(width / 2, height - 60, company["address_line2"])
 
-    # Right Box - Invoice Details
-    c.rect(width - 280, box_top - 90, 250, 90, stroke=1, fill=0)
-    
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(width - 270, box_top - 18, f"Freight Bill No: {df.iloc[0]['FreightBillNo']}")
-    
-    c.setFont("Helvetica", 8)
-    c.drawString(width - 270, box_top - 35, f"Invoice Date: {df.iloc[0]['InvoiceDate'].strftime('%d %b %Y')}")
-    c.drawString(width - 270, box_top - 50, f"Due Date: {df.iloc[0]['DueDate'].strftime('%d %b %Y')}")
-    
+    c.setFont("Helvetica-Bold", 11)
+    c.drawCentredString(width / 2, height - 76, "INVOICE")
+
+    c.setFont("Helvetica", 6.5)
+    c.drawCentredString(width / 2, height - 87, "@ This is system generated invoice")
+
+    # ── Left box – Customer ─────────────────────────────────────────────────
+    box_top = height - 100
+    box_h = 72
+
+    c.rect(30, box_top - box_h, 252, box_h, stroke=1, fill=0)
+
     c.setFont("Helvetica-Bold", 8)
-    c.drawString(width - 270, box_top - 68, f"Our PAN No. {company['bank']['pan']}")
+    c.drawString(38, box_top - 14, "To,")
 
     c.setFont("Helvetica", 7)
-    c.drawString(30, box_top - 105, f"From location: {df.iloc[0]['FromLocation']}")
+    c.drawString(38, box_top - 26, company["customer"]["name"])
+    c.drawString(38, box_top - 36, company["customer"]["address_line1"])
+    c.drawString(38, box_top - 46, company["customer"]["address_line2"])
+    c.drawString(38, box_top - 58, f"GSTIN: {company['customer']['gstin']}")
 
-    # Table - Transin Format (NO DateArrival, DateDelivery, TruckType)
-    table_top = box_top - 130
+    # ── Right box – Invoice details ─────────────────────────────────────────
+    c.rect(width - 268, box_top - box_h, 248, box_h, stroke=1, fill=0)
+
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(width - 260, box_top - 14, f"Freight Bill No: {df.iloc[0]['FreightBillNo']}")
+
+    c.setFont("Helvetica", 7)
+    c.drawString(width - 260, box_top - 28, f"Invoice Date: {df.iloc[0]['InvoiceDate'].strftime('%d %b %Y')}")
+    c.drawString(width - 260, box_top - 40, f"Due Date: {df.iloc[0]['DueDate'].strftime('%d %b %Y')}")
+
+    c.setFont("Helvetica-Bold", 7)
+    c.drawString(width - 260, box_top - 54, f"Our PAN No. {company['bank']['pan']}")
+
+    # From location
+    c.setFont("Helvetica", 6.5)
+    c.drawString(30, box_top - box_h - 9, f"From location: {df.iloc[0]['FromLocation']}")
+
+    # ── Table ───────────────────────────────────────────────────────────────
+    table_top = box_top - box_h - 20
     table_left = 30
-    
+
     headers = [
         "S.\nno.", "Shipment\nDate", "LR\nNo.", "Destination", "CN\nNumber",
-        "Truck No", "Invoice No", "Pkgs", "Weight\n(kgs)", 
-        "Freight\nAmt (Rs.)", "To Point\nCharges\n(Rs.)", "Unloading\nCharge\n(Rs.)", 
+        "Truck No", "Invoice No", "Pkgs", "Weight\n(kgs)",
+        "Freight\nAmt (Rs.)", "To Point\nCharges\n(Rs.)", "Unloading\nCharge\n(Rs.)",
         "Source\nDetention\n(Rs.)", "Destination\nDetention\n(Rs.)", "Total\nAmount\n(Rs.)"
     ]
-    
-    col_widths = [25, 50, 35, 55, 50, 50, 85, 30, 45, 50, 50, 50, 50, 55, 55]
+
+    col_widths = [22, 48, 33, 52, 48, 48, 82, 28, 42, 48, 48, 48, 48, 52, 52]
     total_col_width = sum(col_widths)
-    
-    # Header Row
+
+    # Header row
+    header_h = 23
     c.setFillColor(colors.lightgrey)
-    c.rect(table_left, table_top - 30, total_col_width, 30, stroke=1, fill=1)
-    
+    c.rect(table_left, table_top - header_h, total_col_width, header_h, stroke=1, fill=1)
     c.setFillColor(colors.black)
-    c.setFont("Helvetica-Bold", 7)
-    
+    c.setFont("Helvetica-Bold", 5.5)
+
     x = table_left
     for i, header in enumerate(headers):
         lines = header.split('\n')
-        y_offset = table_top - 8
-        for line in lines:
-            c.drawCentredString(x + col_widths[i]/2, y_offset, line)
-            y_offset -= 8
+        num_lines = len(lines)
+        y_start = table_top - (header_h - num_lines * 6.5) / 2 - 4.5
+        for j, line in enumerate(lines):
+            c.drawCentredString(x + col_widths[i] / 2, y_start - j * 6.5, line)
         x += col_widths[i]
-    
-    # Vertical lines in header
+
+    # Header vertical lines
     x = table_left
-    for width_val in col_widths:
-        c.line(x, table_top, x, table_top - 30)
-        x += width_val
-    c.line(x, table_top, x, table_top - 30)
-    
-    # Data Rows
-    c.setFont("Helvetica", 7)
-    y = table_top - 30
+    for wv in col_widths:
+        c.line(x, table_top, x, table_top - header_h)
+        x += wv
+    c.line(x, table_top, x, table_top - header_h)
+
+    # ── Data rows (dynamic height) ──────────────────────────────────────────
+    y = table_top - header_h
     total_amount = 0
-    
+
     for idx, row in df.iterrows():
-        row_height = 35
+        # Normalise multi-line InvoiceNo (Excel newlines → /)
+        inv_text = str(row["InvoiceNo"]).replace('\n', '/')
+        lr_text = str(row["LRNo"])
+
+        # Count wrapped lines to set dynamic row height
+        c.setFont("Helvetica", 6)
+        inv_lines = len(wrap_text_lines(c, inv_text, col_widths[6] - 4, "Helvetica", 6))
+        lr_lines = len(wrap_text_lines(c, lr_text, col_widths[2] - 4, "Helvetica", 6))
+        max_lines = max(inv_lines, lr_lines, 1)
+
+        row_height = max(19, max_lines * 7 + 5)   # dynamic: expands for multi-line cells
         y -= row_height
-        
+
         row_total = (
-            float(row["FreightAmt"]) + 
-            float(row["ToPointCharges"]) + 
-            float(row["UnloadingCharge"]) + 
-            float(row["SourceDetention"]) + 
+            float(row["FreightAmt"]) +
+            float(row["ToPointCharges"]) +
+            float(row["UnloadingCharge"]) +
+            float(row["SourceDetention"]) +
             float(row["DestinationDetention"])
         )
         total_amount += row_total
-        
+
         values = [
             str(idx + 1),
             row["ShipmentDate"].strftime("%d-%m-%Y"),
-            str(row["LRNo"]),
+            lr_text,
             str(row["Destination"]),
             str(row["CNNumber"]),
             str(row["TruckNo"]),
-            str(row["InvoiceNo"]),
+            inv_text,
             str(int(row["Pkgs"])),
             str(int(row["WeightKgs"])),
             f"{float(row['FreightAmt']):.1f}",
@@ -599,89 +577,113 @@ def generate_transin_pdf(df, company_code):
             f"{float(row['DestinationDetention']):.1f}",
             f"{row_total:.1f}"
         ]
-        
-        wrap_columns = {6}  # Invoice No
-        
+
+        # Columns that may wrap: LR No (2) and Invoice No (6)
+        wrap_columns = {2, 6}
+
         x = table_left
         for i, val in enumerate(values):
             if i in wrap_columns:
-                draw_wrapped_text(c, val, x + col_widths[i]/2, y + row_height/2, 
-                                col_widths[i] - 6, "Helvetica", 6, 7)
+                draw_wrapped_text(c, val, x + col_widths[i] / 2, y + row_height / 2,
+                                  col_widths[i] - 4, "Helvetica", 6, 7)
             else:
-                c.drawCentredString(x + col_widths[i]/2, y + row_height/2, val)
+                c.setFont("Helvetica", 6)
+                c.drawCentredString(x + col_widths[i] / 2, y + row_height / 2, val)
             x += col_widths[i]
-        
+
+        # Horizontal separator
         c.line(table_left, y, table_left + total_col_width, y)
-    
-    # Vertical lines
+
+    # Vertical lines for data area
     x = table_left
-    for width_val in col_widths:
-        c.line(x, table_top - 30, x, y)
-        x += width_val
-    c.line(x, table_top - 30, x, y)
-    
-    # Total Row
-    total_row_height = 20
-    y -= total_row_height
-    
-    c.rect(table_left, y, total_col_width, total_row_height, stroke=1, fill=0)
-    
-    c.setFont("Helvetica-Bold", 8)
+    for wv in col_widths:
+        c.line(x, table_top - header_h, x, y)
+        x += wv
+    c.line(x, table_top - header_h, x, y)
+
+    # ── Total row ───────────────────────────────────────────────────────────
+    total_row_h = 15
+    y -= total_row_h
+    c.rect(table_left, y, total_col_width, total_row_h, stroke=1, fill=0)
+
     rupees = int(total_amount)
-    paise = int((total_amount - rupees) * 100)
-    
+    paise = int(round((total_amount - rupees) * 100))
+
     if paise > 0:
         total_words = f"{num2words(rupees, lang='en_IN').title()} Rupees and {num2words(paise, lang='en_IN').title()} Paise"
     else:
         total_words = f"{num2words(rupees, lang='en_IN').title()} Rupees"
-    
-    c.drawString(table_left + 5, y + 8, f"Total in words (Rs.) : {total_words} Only")
-    
-    c.setFont("Helvetica-Bold", 9)
-    total_col_x = table_left + sum(col_widths[:-1])
-    c.drawCentredString(total_col_x + col_widths[-1]/2, y + 8, f"{total_amount:.1f}")
-    
-    c.line(total_col_x, y, total_col_x, y + total_row_height)
 
-    # Notes
-    c.setFont("Helvetica", 6)
-    note_y = y - 12
-    c.drawString(30, note_y, 'Any changes or discrepancies should be highlighted within 5 working days else it would be considered final. Please send all remittance details to "receivables@onmove.in".')
-    
-    note_y -= 10
+    c.setFont("Helvetica-Bold", 6.5)
+    c.drawString(table_left + 4, y + 4.5, f"Total in words (Rs.) : {total_words} Only")
+
+    c.setFont("Helvetica-Bold", 7.5)
+    total_col_x = table_left + sum(col_widths[:-1])
+    c.drawCentredString(total_col_x + col_widths[-1] / 2, y + 4.5, f"{total_amount:.1f}")
+    c.line(total_col_x, y, total_col_x, y + total_row_h)
+
+    # ── Notes ───────────────────────────────────────────────────────────────
+    note_y = y - 8
+    c.setFont("Helvetica", 5.5)
+    c.drawString(30, note_y,
+                 'Any changes or discrepancies should be highlighted within 5 working days '
+                 'else it would be considered final. Please send all remittance details to '
+                 '"receivables@onmove.in".')
+
+    note_y -= 7
     c.drawString(30, note_y, company.get("gst_note", ""))
-    
-    note_y -= 10
-    c.setFont("Helvetica", 7)
+
+    note_y -= 7
+    c.setFont("Helvetica", 5.5)
     c.drawString(30, note_y, f"Transin GSTIN {company['bank']['gstin']}")
-    c.drawString(200, note_y, f"SAC code {company['bank']['sac_code']}")
-    c.drawString(350, note_y, f"Transin State Code {company['bank']['state_code']}")
-    
-    note_y -= 10
+    c.drawString(190, note_y, f"SAC code {company['bank']['sac_code']}")
+    c.drawString(320, note_y, f"Transin State Code {company['bank']['state_code']}")
+
+    note_y -= 7
     c.drawString(30, note_y, "Tax Details - 5% IGST or (2.5% SGST+2.5% CGST) as applicable")
 
-    # Digital Signature
-    sig_y = note_y - 30
-    c.setFont("Helvetica-Bold", 9)
+    # ── Digital Signature block ─────────────────────────────────────────────
+    sig = company["digital_signature"]
+    sig_y = note_y - 14
+
+    c.setFont("Helvetica-Bold", 7.5)
     c.drawRightString(width - 35, sig_y, f"For {company['name']}")
-    
-    c.setFont("Helvetica", 7)
-    c.drawRightString(width - 35, sig_y - 40, "(Authorized Signatory)")
-    
-    if "digital_signature" in company:
-        c.setFont("Helvetica-Oblique", 7)
-        c.drawRightString(width - 35, sig_y - 55, f"Digitally signed by {company['digital_signature']}")
-    
-    c.line(width - 180, sig_y - 42, width - 35, sig_y - 42)
+
+    # Signature line
+    c.line(width - 160, sig_y - 24, width - 35, sig_y - 24)
+
+    c.setFont("Helvetica", 5.5)
+    c.drawRightString(width - 35, sig_y - 31, "(Authorized Signatory)")
+
+    # Italic signer name
+    c.setFont("Helvetica-Oblique", 6.5)
+    c.drawRightString(width - 35, sig_y - 40, sig["name"])
+
+    # DN block (small, right-aligned)
+    c.setFont("Helvetica", 4.5)
+    dn_y = sig_y - 47
+    c.drawRightString(width - 35, dn_y, f'Digitally signed by {sig["name"]}')
+    dn_y -= 5.5
+    c.drawRightString(width - 35, dn_y, f'DN: cn={sig["cn"]}, o={sig["o"]},')
+    dn_y -= 5.5
+    c.drawRightString(width - 35, dn_y, f'ou={sig["ou"]},')
+    dn_y -= 5.5
+    c.drawRightString(width - 35, dn_y, f'email={sig["email"]}, c={sig["c"]}')
+    dn_y -= 5.5
+    inv_date = df.iloc[0]['InvoiceDate']
+    c.drawRightString(width - 35, dn_y, f"Date: {inv_date.strftime('%Y.%m.%d')} 14:29:13 +05'30'")
 
     c.save()
     return pdf_path
 
 
+# ---------------------------------------------------------------------------
+# Basic PDF  (STC – unchanged logic)
+# ---------------------------------------------------------------------------
+
 def generate_basic_pdf(df, company_code):
-    """Generate basic format PDF (STC, NTC, WTC)"""
     company = COMPANIES[company_code]
-    
+
     bill_no = str(df.iloc[0]["FreightBillNo"]).replace("/", "_")
     pdf_path = f"{OUTPUT_FOLDER}/{company_code}_{bill_no}.pdf"
 
@@ -689,7 +691,7 @@ def generate_basic_pdf(df, company_code):
     width, height = landscape(A4)
 
     margin = 15
-    c.rect(margin, margin, width - 2*margin, height - 2*margin, stroke=1, fill=0)
+    c.rect(margin, margin, width - 2 * margin, height - 2 * margin, stroke=1, fill=0)
 
     # Logo
     try:
@@ -710,21 +712,21 @@ def generate_basic_pdf(df, company_code):
     # Header
     c.setFont("Helvetica-Bold", 16)
     c.drawCentredString(width / 2, height - 70, company["name"])
-    
+
     c.setFont("Helvetica", 9)
     c.drawCentredString(width / 2, height - 85, company["address_line1"])
     c.drawCentredString(width / 2, height - 98, company["address_line2"])
-    
+
     c.setFont("Helvetica-Bold", 12)
     c.drawCentredString(width / 2, height - 125, "INVOICE")
 
     # Left Box
     box_top = height - 160
     c.rect(30, box_top - 110, 260, 110, stroke=1, fill=0)
-    
+
     c.setFont("Helvetica-Bold", 10)
     c.drawString(40, box_top - 20, "To,")
-    
+
     c.setFont("Helvetica", 9)
     c.drawString(40, box_top - 35, company["customer"]["name"])
     c.drawString(40, box_top - 50, company["customer"]["address_line1"])
@@ -733,10 +735,10 @@ def generate_basic_pdf(df, company_code):
 
     # Right Box
     c.rect(width - 290, box_top - 110, 260, 110, stroke=1, fill=0)
-    
+
     c.setFont("Helvetica-Bold", 10)
     c.drawString(width - 280, box_top - 25, f"Freight Bill No: {df.iloc[0]['FreightBillNo']}")
-    
+
     c.setFont("Helvetica", 9)
     c.drawString(width - 280, box_top - 45, f"Invoice Date:      {df.iloc[0]['InvoiceDate'].strftime('%d %b %Y')}")
     c.drawString(width - 280, box_top - 65, f"Due Date:          {df.iloc[0]['DueDate'].strftime('%d-%m-%y')}")
@@ -747,7 +749,7 @@ def generate_basic_pdf(df, company_code):
     # Table
     table_top = box_top - 155
     table_left = 30
-    
+
     headers = [
         "S.\nno.", "Shipment\nDate", "LR\nNo.", "Destination", "CN\nNumber",
         "Truck No", "Invoice No", "Pkgs", "Weight\n(Kgs)", "Date of\nArrival",
@@ -755,50 +757,50 @@ def generate_basic_pdf(df, company_code):
         "Unloading\nCharge (Rs.)", "Source\nDetention\n(Rs.)", "Destination\nDetention\n(Rs.)",
         "Total\nAmount (Rs.)"
     ]
-    
+
     col_widths = [22, 45, 27, 48, 30, 44, 70, 26, 38, 45, 45, 45, 48, 48, 48, 48, 50, 55]
     total_col_width = sum(col_widths)
-    
+
     # Header
     c.setFillColor(colors.lightgrey)
     c.rect(table_left, table_top - 30, total_col_width, 30, stroke=1, fill=1)
-    
+
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 7)
-    
+
     x = table_left
     for i, header in enumerate(headers):
         lines = header.split('\n')
         y_offset = table_top - 9
         for line in lines:
-            c.drawCentredString(x + col_widths[i]/2, y_offset, line)
+            c.drawCentredString(x + col_widths[i] / 2, y_offset, line)
             y_offset -= 8
         x += col_widths[i]
-    
+
     x = table_left
     for width_val in col_widths:
         c.line(x, table_top, x, table_top - 30)
         x += width_val
     c.line(x, table_top, x, table_top - 30)
-    
+
     # Data
     c.setFont("Helvetica", 7)
     y = table_top - 30
     total_amount = 0
-    
+
     for idx, row in df.iterrows():
         row_height = 35
         y -= row_height
-        
+
         row_total = (
-            float(row["FreightAmt"]) + 
-            float(row["ToPointCharges"]) + 
-            float(row["UnloadingCharge"]) + 
-            float(row["SourceDetention"]) + 
+            float(row["FreightAmt"]) +
+            float(row["ToPointCharges"]) +
+            float(row["UnloadingCharge"]) +
+            float(row["SourceDetention"]) +
             float(row["DestinationDetention"])
         )
         total_amount += row_total
-        
+
         values = [
             str(idx + 1),
             row["ShipmentDate"].strftime("%d %b %Y"),
@@ -819,57 +821,60 @@ def generate_basic_pdf(df, company_code):
             f"{float(row['DestinationDetention']):.2f}",
             f"{row_total:.2f}"
         ]
-        
+
         wrap_columns = {6, 11}
-        
+
         x = table_left
         for i, val in enumerate(values):
             if i in wrap_columns:
-                draw_wrapped_text(c, val, x + col_widths[i]/2, y + row_height/2, 
-                                col_widths[i] - 6, "Helvetica", 6, 7)
+                draw_wrapped_text(c, val, x + col_widths[i] / 2, y + row_height / 2,
+                                  col_widths[i] - 6, "Helvetica", 6, 7)
             else:
-                c.drawCentredString(x + col_widths[i]/2, y + row_height/2, val)
+                c.drawCentredString(x + col_widths[i] / 2, y + row_height / 2, val)
             x += col_widths[i]
-        
+
         c.line(table_left, y, table_left + total_col_width, y)
-    
+
     x = table_left
     for width_val in col_widths:
         c.line(x, table_top - 30, x, y)
         x += width_val
     c.line(x, table_top - 30, x, y)
-    
+
     # Total Row
     total_row_height = 25
     y -= total_row_height
-    
+
     c.rect(table_left, y, total_col_width, total_row_height, stroke=1, fill=0)
-    
+
     c.setFont("Helvetica-Bold", 8)
     rupees = int(total_amount)
     paise = int((total_amount - rupees) * 100)
-    
+
     if paise > 0:
         total_words = f"{num2words(rupees, lang='en_IN').title()} Rupees and {num2words(paise, lang='en_IN').title()} Paise"
     else:
         total_words = f"{num2words(rupees, lang='en_IN').title()} Rupees"
-    
+
     c.drawString(table_left + 5, y + 10, f"Total in words (Rs.) :  {total_words} Only")
-    
+
     c.setFont("Helvetica-Bold", 9)
     total_col_x = table_left + sum(col_widths[:-1])
-    c.drawCentredString(total_col_x + col_widths[-1]/2, y + 10, f"{total_amount:.2f}")
-    
+    c.drawCentredString(total_col_x + col_widths[-1] / 2, y + 10, f"{total_amount:.2f}")
+
     c.line(total_col_x, y, total_col_x, y + total_row_height)
 
     # Note
     c.setFont("Helvetica", 7)
     note_y = y - 15
-    c.drawString(30, note_y, f'Any changes or discrepancies should be highlighted within 5 working days else it would be considered final. Please send all remittance details to "{company["bank"]["email"]}".')
+    c.drawString(30, note_y,
+                 f'Any changes or discrepancies should be highlighted within 5 working days '
+                 f'else it would be considered final. Please send all remittance details to '
+                 f'"{company["bank"]["email"]}".')
 
     # Bank Details
     bank_y = note_y - 25
-    
+
     bank_details = [
         ("Our PAN No.", company["bank"]["pan"]),
         (f"{company_code.upper()} GSTIN", company["bank"]["gstin"]),
@@ -878,16 +883,16 @@ def generate_basic_pdf(df, company_code):
         ("Account no", company["bank"]["account_no"]),
         ("IFS Code", company["bank"]["ifsc"])
     ]
-    
+
     row_height = 13
-    
+
     c.setFont("Helvetica", 7)
     for i, (label, value) in enumerate(bank_details):
         y_pos = bank_y - (i * row_height)
-        
+
         c.rect(30, y_pos - row_height, 100, row_height, stroke=1, fill=0)
         c.rect(130, y_pos - row_height, 100, row_height, stroke=1, fill=0)
-        
+
         c.drawString(35, y_pos - 10, label)
         c.drawString(135, y_pos - 10, value)
 
@@ -895,7 +900,7 @@ def generate_basic_pdf(df, company_code):
     sig_y = bank_y - 15
     c.setFont("Helvetica-Bold", 9)
     c.drawRightString(width - 35, sig_y, f"For {company['name']}")
-    
+
     c.setFont("Helvetica", 7)
     c.drawRightString(width - 35, sig_y - 50, "(Authorized Signatory)")
     c.line(width - 180, sig_y - 52, width - 35, sig_y - 52)
@@ -903,6 +908,8 @@ def generate_basic_pdf(df, company_code):
     c.save()
     return pdf_path
 
+
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
