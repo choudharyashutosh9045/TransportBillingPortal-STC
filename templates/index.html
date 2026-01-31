@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>STC Transport Billing Portal</title>
+  <title>Multi-Transport Billing Portal</title>
   <style>
     :root{
       --bg:#0a0f1e;
@@ -14,6 +14,7 @@
       --muted:#94a3b8;
       --accent:#10b981;
       --accent2:#3b82f6;
+      --accent3:#f59e0b;
       --shadow: 0 20px 60px rgba(0,0,0,.50);
       --radius:20px;
     }
@@ -84,6 +85,12 @@
       border:1px solid rgba(16,185,129,.3);
       background: rgba(16,185,129,.15);
       color:var(--accent);font-weight:700;
+    }
+    .chipOrange{
+      margin-left:auto;font-size:10px;padding:4px 10px;border-radius:999px;
+      border:1px solid rgba(245,158,11,.4);
+      background: rgba(245,158,11,.15);
+      color:var(--accent3);font-weight:700;
     }
     .sideFooter{
       margin-top:20px;padding:16px;border-radius: var(--radius);
@@ -189,6 +196,46 @@
       border-radius:10px;border:1px solid var(--border);
     }
 
+    /* Company Selector */
+    .companySelector{
+      margin-top:18px;
+      padding:16px;
+      background: linear-gradient(135deg, rgba(59,130,246,.08), rgba(16,185,129,.08));
+      border:1px solid var(--border);
+      border-radius:16px;
+    }
+    .companyLabel{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:10px;
+      font-weight:600;
+    }
+    select{
+      width:100%;
+      padding:12px 16px;
+      background: rgba(15,23,42,.80);
+      border:1px solid var(--border);
+      border-radius:12px;
+      color:var(--text);
+      font-size:14px;
+      font-weight:600;
+      cursor:pointer;
+      transition:.2s;
+    }
+    select:hover{
+      background: rgba(15,23,42,.95);
+      border-color: var(--accent2);
+    }
+    select:focus{
+      outline:none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(16,185,129,.15);
+    }
+    option{
+      background: rgba(15,23,42,1);
+      padding:10px;
+    }
+
     .stats{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;}
     .stat{
       padding:16px;border-radius:16px;border:1px solid var(--border);
@@ -256,6 +303,18 @@
     .histTime{font-size:11px;color:var(--muted);margin-bottom:6px;}
     .histFile{font-size:13px;font-weight:700;margin-bottom:4px;}
     .histDetails{font-size:12px;color:var(--muted);}
+    .histCompany{
+      display:inline-block;
+      font-size:11px;padding:4px 10px;border-radius:8px;
+      background: rgba(16,185,129,.15);color:var(--accent);
+      border:1px solid rgba(16,185,129,.3);
+      margin-top:6px;
+      font-weight:700;
+    }
+    .histCompany.transin{
+      background: rgba(245,158,11,.15);color:var(--accent3);
+      border:1px solid rgba(245,158,11,.4);
+    }
     .histBills{
       margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;
     }
@@ -280,7 +339,6 @@
     .emptyState{
       text-align:center;padding:40px 20px;color:var(--muted);
     }
-    .emptyState svg{margin-bottom:16px;}
   </style>
 </head>
 
@@ -288,39 +346,39 @@
   <div class="layout">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brandIcon">STC</div>
+        <div class="brandIcon">MT</div>
         <div>
-          <h1>Transport Billing</h1>
-          <p>Excel → PDF Bills (ZIP)</p>
+          <h1>Multi-Transport Portal</h1>
+          <p>4 Companies • Excel → PDF</p>
         </div>
       </div>
 
       <nav class="nav">
         <a href="#" class="active"><span>📄</span> Generate Bills <span class="chip">LIVE</span></a>
-        <a href="/download-template"><span>📥</span> Download Template</a>
+        <a href="#" id="downloadTemplateLink"><span>📥</span> Download Template</a>
         <a href="#recent" onclick="scrollToRecent(event)"><span>🧾</span> Recent Bills</a>
         <a href="#"><span>⚙️</span> Settings</a>
       </nav>
 
       <div class="sideFooter">
-        <b>Company:</b> South Transport Company<br/>
-        <b>Mode:</b> Non-GST • Per LR<br/>
-        <b>System:</b> Flask Server
+        <b>System:</b> Multi-Transport Billing<br/>
+        <b>Companies:</b> 4 Active<br/>
+        <b>Mode:</b> GST • Non-GST
       </div>
     </aside>
 
     <main class="main">
       <div class="topbar">
         <div class="title">
-          <h2>STC Billing Dashboard</h2>
-          <p>Upload Excel, preview data, generate professional PDF invoices instantly.</p>
+          <h2>Multi-Transport Dashboard</h2>
+          <p>Select company → upload Excel → generate professional PDF invoices.</p>
         </div>
 
         <div class="topRight">
           <div class="search">
             🔎 <input id="search" placeholder="Search LR / Truck / Invoice No..." />
           </div>
-          <div class="profile">AK</div>
+          <div class="profile">MT</div>
         </div>
       </div>
 
@@ -329,16 +387,29 @@
         <section class="card">
           <div class="cardHead">
             <h3>📤 Upload & Generate Bills</h3>
-            <p>First preview your Excel data → then generate Bills.zip with all PDFs</p>
+            <p>Choose transport company → upload Excel → generate Bills.zip</p>
           </div>
 
           <div class="cardBody">
+            <!-- Company Selector -->
+            <div class="companySelector">
+              <div class="companyLabel">🏢 SELECT TRANSPORT COMPANY</div>
+              <select id="companySelect">
+                <option value="stc">SOUTH TRANSPORT COMPANY (STC)</option>
+                <option value="ntc">NORTH TRANSPORT COMPANY (NTC)</option>
+                <option value="wtc">WEST TRANSPORT COMPANY (WTC)</option>
+                <option value="transin">TRANSIN LOGISTICS PVT LTD</option>
+              </select>
+            </div>
+
             <form id="form" action="/" method="POST" enctype="multipart/form-data">
-              <div id="drop" class="drop">
+              <input type="hidden" id="companyInput" name="company" value="stc" />
+              
+              <div id="drop" class="drop" style="margin-top:18px;">
                 <div class="row">
                   <div>
                     <div class="uploadTitle">📌 Drag & Drop Excel File</div>
-                    <div class="hint">Or click "Choose File". Preview आएगा, फिर Generate करें.</div>
+                    <div class="hint">Or click "Choose File". Download template first for correct format.</div>
                   </div>
 
                   <div class="btns">
@@ -356,8 +427,8 @@
 
             <div class="stats">
               <div class="stat">
-                <div class="k">Output File</div>
-                <div class="v">Bills.zip</div>
+                <div class="k">Selected Company</div>
+                <div id="selectedCompany" class="v">STC</div>
               </div>
               <div class="stat">
                 <div class="k">Rows Detected</div>
@@ -370,8 +441,9 @@
             </div>
 
             <div class="miniNote">
-              ✔ Party details are fixed in system (Excel में नहीं भरना)<br/>
-              ✔ Blank charges will default to 0
+              ✔ Each company has unique format & bank details<br/>
+              ✔ <b>Transin:</b> No DateArrival/DateDelivery/TruckType needed<br/>
+              ✔ <b>Others:</b> Full format with all fields
             </div>
 
             <div id="previewArea" style="display:none;">
@@ -402,19 +474,22 @@
         <section class="card">
           <div class="cardHead">
             <h3 id="recent">🕒 Recent Generated Bills</h3>
-            <p>Last 10 uploads history - click to download PDFs</p>
+            <p>Last 20 uploads - click bill chips to download PDFs</p>
           </div>
           <div class="cardBody">
             <div id="history"></div>
 
             <div class="miniNote" style="margin-top:20px;">
-              <b>📋 Required Excel Columns</b>
+              <b>📋 Excel Format Notes</b>
             </div>
-            <div class="mono" style="margin-top:12px;">FreightBillNo, InvoiceDate, DueDate, FromLocation,
-ShipmentDate, LRNo, Destination, CNNumber, TruckNo, InvoiceNo,
-Pkgs, WeightKgs, DateArrival, DateDelivery, TruckType,
-FreightAmt, ToPointCharges, UnloadingCharge,
-SourceDetention, DestinationDetention</div>
+            <div class="mono" style="margin-top:12px;"><b>Transin Format (Simplified):</b>
+FreightBillNo, InvoiceDate, DueDate, FromLocation, ShipmentDate,
+LRNo, Destination, CNNumber, TruckNo, InvoiceNo, Pkgs, WeightKgs,
+FreightAmt, ToPointCharges, UnloadingCharge, SourceDetention,
+DestinationDetention
+
+<b>Others (Full Format):</b>
++ DateArrival, DateDelivery, TruckType</div>
           </div>
         </section>
       </div>
@@ -433,8 +508,31 @@ SourceDetention, DestinationDetention</div>
     const previewTable = document.getElementById("previewTable");
     const historyBox = document.getElementById("history");
     const searchInput = document.getElementById("search");
+    const companySelect = document.getElementById("companySelect");
+    const companyInput = document.getElementById("companyInput");
+    const selectedCompanyDisplay = document.getElementById("selectedCompany");
+    const downloadTemplateLink = document.getElementById("downloadTemplateLink");
 
     let allPreviewRows = [];
+    let currentCompany = "stc";
+
+    // Company selector change
+    companySelect.addEventListener("change", function(){
+      currentCompany = companySelect.value;
+      const selected = companySelect.value.toUpperCase();
+      companyInput.value = companySelect.value;
+      selectedCompanyDisplay.textContent = selected;
+      
+      // Update template download link
+      updateTemplateLink();
+      
+      console.log("Company changed to:", selected);
+    });
+
+    function updateTemplateLink(){
+      downloadTemplateLink.href = `/download-template?company=${currentCompany}`;
+    }
+    updateTemplateLink();
 
     function setFileName(){
       if(fileInput.files && fileInput.files.length > 0){
@@ -459,6 +557,7 @@ SourceDetention, DestinationDetention</div>
       }
       
       console.log("Form submitting with file:", fileInput.files[0].name);
+      console.log("Company:", companyInput.value);
       toast.style.display = "block";
       genBtn.disabled = true;
       genBtn.textContent = "⏳ Generating...";
@@ -502,14 +601,18 @@ SourceDetention, DestinationDetention</div>
         
         let html = "";
         data.forEach((h, i)=>{
+          const companyCode = h.company_code || 'stc';
+          const companyClass = companyCode === 'transin' ? 'transin' : '';
+          
           html += `
             <div class="historyItem">
               <div class="histTime">${h.time}</div>
               <div class="histFile">📄 ${h.file}</div>
+              <div class="histCompany ${companyClass}">${h.company || 'STC'}</div>
               <div class="histDetails">Rows: ${h.rows} | Bills: ${h.bills ? h.bills.length : 0}</div>
               ${h.bills && h.bills.length > 0 ? `
                 <div class="histBills">
-                  ${h.bills.map(b => `<span class="billChip" onclick="downloadBill('${b.replace(/\//g, '_')}.pdf')">${b}</span>`).join('')}
+                  ${h.bills.map(b => `<span class="billChip" onclick="downloadBill('${companyCode}_${b.replace(/\//g, '_')}.pdf')">${b}</span>`).join('')}
                 </div>
               ` : ''}
             </div>
@@ -590,7 +693,7 @@ SourceDetention, DestinationDetention</div>
       });
     }
 
-    // FIXED: Search in preview table - now searches ALL rows
+    // Search in preview table
     searchInput.addEventListener("input", ()=>{
       const q = (searchInput.value || "").toLowerCase().trim();
       
