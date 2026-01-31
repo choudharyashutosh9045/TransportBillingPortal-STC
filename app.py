@@ -16,6 +16,7 @@ UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "output"
 LOGO_PATH = "static/logo.png"
 HISTORY_FILE = "history.json"
+TEMPLATE_FILE = "excel_template.xlsx"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -40,6 +41,46 @@ def save_history(entry):
     history = history[:10]  # Keep last 10
     with open(HISTORY_FILE, 'w') as f:
         json.dump(history, f, indent=2)
+
+
+def create_excel_template():
+    """Create Excel template file if it doesn't exist"""
+    if not os.path.exists(TEMPLATE_FILE):
+        columns = [
+            'FreightBillNo', 'InvoiceDate', 'DueDate', 'FromLocation',
+            'ShipmentDate', 'LRNo', 'Destination', 'CNNumber', 'TruckNo',
+            'InvoiceNo', 'Pkgs', 'WeightKgs', 'DateArrival', 'DateDelivery',
+            'TruckType', 'FreightAmt', 'ToPointCharges', 'UnloadingCharge',
+            'SourceDetention', 'DestinationDetention'
+        ]
+        
+        # Create sample data
+        sample_data = {
+            'FreightBillNo': ['FB/2025/001'],
+            'InvoiceDate': ['2025-01-15'],
+            'DueDate': ['2025-02-15'],
+            'FromLocation': ['Roorkee'],
+            'ShipmentDate': ['2025-01-10'],
+            'LRNo': ['LR12345'],
+            'Destination': ['Delhi'],
+            'CNNumber': ['CN001'],
+            'TruckNo': ['UK01AB1234'],
+            'InvoiceNo': ['INV001'],
+            'Pkgs': [10],
+            'WeightKgs': [500],
+            'DateArrival': ['2025-01-12'],
+            'DateDelivery': ['2025-01-13'],
+            'TruckType': ['Open Body'],
+            'FreightAmt': [5000],
+            'ToPointCharges': [500],
+            'UnloadingCharge': [300],
+            'SourceDetention': [0],
+            'DestinationDetention': [0]
+        }
+        
+        df = pd.DataFrame(sample_data)
+        df.to_excel(TEMPLATE_FILE, index=False)
+        print(f"✓ Template created: {TEMPLATE_FILE}")
 
 
 def wrap_text_lines(c, text, max_width, font_name="Helvetica", font_size=7):
@@ -103,6 +144,13 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/download-template")
+def download_template():
+    """Download Excel template"""
+    create_excel_template()
+    return send_file(TEMPLATE_FILE, as_attachment=True, download_name="STC_Template.xlsx")
+
+
 @app.route("/", methods=["POST"])
 def generate_bills():
     """Generate PDF bills from Excel"""
@@ -132,11 +180,14 @@ def generate_bills():
         pdf_files = generate_multiple_pdfs(df)
         print(f"✓ Generated {len(pdf_files)} PDF(s)")
         
-        # Save to history
+        # Save to history with bill numbers
+        bill_numbers = df['FreightBillNo'].unique().tolist()
         history_entry = {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "file": file.filename,
-            "rows": len(df)
+            "rows": len(df),
+            "bills": [str(b) for b in bill_numbers[:5]],  # First 5 bill numbers
+            "pdf_files": [os.path.basename(f) for f in pdf_files]
         }
         save_history(history_entry)
         
@@ -179,9 +230,9 @@ def preview():
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], errors='coerce')
         
-        # Calculate total amounts
+        # Get ALL rows for search functionality
         rows = []
-        for idx, row in df.head(10).iterrows():  # Preview first 10 rows
+        for idx, row in df.iterrows():
             total = (
                 float(row.get("FreightAmt", 0)) + 
                 float(row.get("ToPointCharges", 0)) + 
@@ -205,7 +256,7 @@ def preview():
         return jsonify({
             "ok": True,
             "count": len(df),
-            "rows": rows
+            "rows": rows  # Return all rows
         })
         
     except Exception as e:
@@ -224,6 +275,19 @@ def get_history():
     except Exception as e:
         print(f"History error: {e}")
         return jsonify([])
+
+
+@app.route("/api/bills/<filename>")
+def get_bill(filename):
+    """Download a specific bill PDF"""
+    try:
+        file_path = os.path.join(OUTPUT_FOLDER, filename)
+        if os.path.exists(file_path):
+            return send_file(file_path, as_attachment=True, download_name=filename)
+        else:
+            return jsonify({"error": "File not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 def generate_multiple_pdfs(df):
@@ -465,4 +529,5 @@ def generate_pdf(df):
 
 
 if __name__ == "__main__":
+    create_excel_template()  # Create template on startup
     app.run(debug=True, port=5000)
