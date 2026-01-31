@@ -68,12 +68,7 @@ COMPANIES = {
         },
         "gst_note": 'Freight Claimed is exclusive of GST which has to be submitted by you to the Government. "We hereby confirm that GST ITC for providing the taxable service has not been taken by us under the provisions mentioned in of the GST Rules, 2017". Tax is payable on reverse charge basis.',
         "digital_signature": {
-            "name": "Anchit Maheshwari",
-            "cn": "Anchit Maheshwari",
-            "o": "Transin Logistics Solutions Private Limited",
-            "ou": "Delta Business",
-            "email": "anchit.maheshwari@onmove.in",
-            "c": "IN"
+            "name": "Anchit Maheshwari"
         }
     }
 }
@@ -533,7 +528,10 @@ def generate_transin_pdf(df, company_code):
         x += wv
     c.line(x, table_top, x, table_top - header_h)
 
-    # ── Data rows (dynamic height) ──────────────────────────────────────────
+    # ── Data rows (dynamic height, font 7pt) ───────────────────────────────
+    DATA_FONT = 7
+    DATA_LINE_HEIGHT = 8
+
     y = table_top - header_h
     total_amount = 0
 
@@ -543,12 +541,12 @@ def generate_transin_pdf(df, company_code):
         lr_text = str(row["LRNo"])
 
         # Count wrapped lines to set dynamic row height
-        c.setFont("Helvetica", 6)
-        inv_lines = len(wrap_text_lines(c, inv_text, col_widths[6] - 4, "Helvetica", 6))
-        lr_lines = len(wrap_text_lines(c, lr_text, col_widths[2] - 4, "Helvetica", 6))
+        c.setFont("Helvetica", DATA_FONT)
+        inv_lines = len(wrap_text_lines(c, inv_text, col_widths[6] - 4, "Helvetica", DATA_FONT))
+        lr_lines = len(wrap_text_lines(c, lr_text, col_widths[2] - 4, "Helvetica", DATA_FONT))
         max_lines = max(inv_lines, lr_lines, 1)
 
-        row_height = max(19, max_lines * 7 + 5)   # dynamic: expands for multi-line cells
+        row_height = max(20, max_lines * DATA_LINE_HEIGHT + 6)   # dynamic: expands for multi-line cells
         y -= row_height
 
         row_total = (
@@ -585,9 +583,9 @@ def generate_transin_pdf(df, company_code):
         for i, val in enumerate(values):
             if i in wrap_columns:
                 draw_wrapped_text(c, val, x + col_widths[i] / 2, y + row_height / 2,
-                                  col_widths[i] - 4, "Helvetica", 6, 7)
+                                  col_widths[i] - 4, "Helvetica", DATA_FONT, DATA_LINE_HEIGHT)
             else:
-                c.setFont("Helvetica", 6)
+                c.setFont("Helvetica", DATA_FONT)
                 c.drawCentredString(x + col_widths[i] / 2, y + row_height / 2, val)
             x += col_widths[i]
 
@@ -622,56 +620,75 @@ def generate_transin_pdf(df, company_code):
     c.drawCentredString(total_col_x + col_widths[-1] / 2, y + 4.5, f"{total_amount:.1f}")
     c.line(total_col_x, y, total_col_x, y + total_row_h)
 
-    # ── Notes ───────────────────────────────────────────────────────────────
-    note_y = y - 8
-    c.setFont("Helvetica", 5.5)
+    # ── Bottom section (per reference layout) ──────────────────────────────
+    # Note line 1 – discrepancy warning
+    note_y = y - 9
+    c.setFont("Helvetica", 6)
     c.drawString(30, note_y,
                  'Any changes or discrepancies should be highlighted within 5 working days '
                  'else it would be considered final. Please send all remittance details to '
                  '"receivables@onmove.in".')
 
-    note_y -= 7
+    # Note line 2 – GST disclaimer
+    note_y -= 9
+    c.setFont("Helvetica", 6)
     c.drawString(30, note_y, company.get("gst_note", ""))
 
-    note_y -= 7
-    c.setFont("Helvetica", 5.5)
-    c.drawString(30, note_y, f"Transin GSTIN {company['bank']['gstin']}")
-    c.drawString(190, note_y, f"SAC code {company['bank']['sac_code']}")
-    c.drawString(320, note_y, f"Transin State Code {company['bank']['state_code']}")
+    # ── Bank-details table (left) + Signature (right) ───────────────────────
+    note_y -= 14                          # gap before table / sig zone
 
-    note_y -= 7
-    c.drawString(30, note_y, "Tax Details - 5% IGST or (2.5% SGST+2.5% CGST) as applicable")
+    bank_table_top   = note_y
+    bank_row_h       = 14
+    bank_col1_w      = 130                # label column width
+    bank_col2_w      = 120                # value column width
+    bank_table_left  = 30
 
-    # ── Digital Signature block ─────────────────────────────────────────────
+    bank_rows = [
+        ("Our PAN No.",          company["bank"]["pan"]),
+        ("Transin GSTIN",        company["bank"]["gstin"]),
+        ("SAC code",             company["bank"]["sac_code"]),
+        ("Transin State Code",   company["bank"]["state_code"]),
+    ]
+
+    for i, (label, value) in enumerate(bank_rows):
+        row_y = bank_table_top - (i * bank_row_h)
+        # Two bordered cells per row
+        c.rect(bank_table_left,                     row_y - bank_row_h, bank_col1_w, bank_row_h, stroke=1, fill=0)
+        c.rect(bank_table_left + bank_col1_w,       row_y - bank_row_h, bank_col2_w, bank_row_h, stroke=1, fill=0)
+        # Label (normal)
+        c.setFont("Helvetica", 6.5)
+        c.drawString(bank_table_left + 5,           row_y - bank_row_h + 4, label)
+        # Value (bold)
+        c.setFont("Helvetica-Bold", 6.5)
+        c.drawString(bank_table_left + bank_col1_w + 5, row_y - bank_row_h + 4, value)
+
+    bank_table_bottom = bank_table_top - (len(bank_rows) * bank_row_h)
+
+    # ── Signature block (right side, no DN) ─────────────────────────────────
     sig = company["digital_signature"]
-    sig_y = note_y - 14
+    sig_zone_left   = bank_table_left + bank_col1_w + bank_col2_w + 20   # ~300
+    sig_zone_right  = width - 35                                          # ~807
+    sig_zone_center = (sig_zone_left + sig_zone_right) / 2
 
-    c.setFont("Helvetica-Bold", 7.5)
-    c.drawRightString(width - 35, sig_y, f"For {company['name']}")
+    # "For Transin Logistics Private Limited" – right-aligned at top
+    c.setFont("Helvetica-Bold", 8)
+    c.drawRightString(sig_zone_right, bank_table_top - 2, f"For {company['name'].title()}")
 
-    # Signature line
-    c.line(width - 160, sig_y - 24, width - 35, sig_y - 24)
+    # Large italic signer name – centred in sig zone, vertically mid
+    c.setFont("Helvetica-Oblique", 20)
+    c.drawCentredString(sig_zone_center, bank_table_top - 28, sig["name"])
 
-    c.setFont("Helvetica", 5.5)
-    c.drawRightString(width - 35, sig_y - 31, "(Authorized Signatory)")
+    # "(Authorized Signatory)" – right-aligned at bottom of sig zone
+    c.setFont("Helvetica", 6.5)
+    c.drawRightString(sig_zone_right, bank_table_bottom + 2, "(Authorized Signatory)")
 
-    # Italic signer name
-    c.setFont("Helvetica-Oblique", 6.5)
-    c.drawRightString(width - 35, sig_y - 40, sig["name"])
+    # ── Footer notes (below bank table) ─────────────────────────────────────
+    footer_y = bank_table_bottom - 10
+    c.setFont("Helvetica", 6)
+    c.drawString(30, footer_y, "@ This is system generated invoice")
 
-    # DN block (small, right-aligned)
-    c.setFont("Helvetica", 4.5)
-    dn_y = sig_y - 47
-    c.drawRightString(width - 35, dn_y, f'Digitally signed by {sig["name"]}')
-    dn_y -= 5.5
-    c.drawRightString(width - 35, dn_y, f'DN: cn={sig["cn"]}, o={sig["o"]},')
-    dn_y -= 5.5
-    c.drawRightString(width - 35, dn_y, f'ou={sig["ou"]},')
-    dn_y -= 5.5
-    c.drawRightString(width - 35, dn_y, f'email={sig["email"]}, c={sig["c"]}')
-    dn_y -= 5.5
-    inv_date = df.iloc[0]['InvoiceDate']
-    c.drawRightString(width - 35, dn_y, f"Date: {inv_date.strftime('%Y.%m.%d')} 14:29:13 +05'30'")
+    footer_y -= 8
+    c.drawString(30, footer_y, "Tax Details - 5% IGST or (2.5% SGST+2.5% CGST) as applicable")
 
     c.save()
     return pdf_path
