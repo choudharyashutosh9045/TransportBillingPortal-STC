@@ -484,8 +484,6 @@ def generate_transin_pdf(df, company_code):
     c.drawString(width - 260, box_top - 28, f"Invoice Date: {df.iloc[0]['InvoiceDate'].strftime('%d %b %Y')}")
     c.drawString(width - 260, box_top - 40, f"Due Date: {df.iloc[0]['DueDate'].strftime('%d %b %Y')}")
 
-    c.setFont("Helvetica-Bold", 7)
-    c.drawString(width - 260, box_top - 54, f"Our PAN No. {company['bank']['pan']}")
 
     # From location
     c.setFont("Helvetica", 6.5)
@@ -665,7 +663,7 @@ def generate_transin_pdf(df, company_code):
     bank_table_bottom = bank_table_top - (len(bank_rows) * bank_row_h)
 
     # ── Signature block (right side, no DN) ─────────────────────────────────
-    sig = company["digital_signature"]
+    sig = company[" "]
     sig_zone_left   = bank_table_left + bank_col1_w + bank_col2_w + 20   # ~300
     sig_zone_right  = width - 35                                          # ~807
     sig_zone_center = (sig_zone_left + sig_zone_right) / 2
@@ -680,7 +678,7 @@ def generate_transin_pdf(df, company_code):
 
     # "(Authorized Signatory)" – right-aligned at bottom of sig zone
     c.setFont("Helvetica", 6.5)
-    c.drawRightString(sig_zone_right, bank_table_bottom + 2, "(Authorized Signatory)")
+    c.drawRightString(sig_zone_right, bank_table_bottom + 7, "(Authorized Signatory)")
 
     # ── Footer notes (below bank table) ─────────────────────────────────────
     footer_y = bank_table_bottom - 10
