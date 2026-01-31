@@ -349,7 +349,7 @@
         <div class="brandIcon">MT</div>
         <div>
           <h1>Multi-Transport Portal</h1>
-          <p>4 Companies • Excel → PDF</p>
+          <p>2 Companies • Excel → PDF</p>
         </div>
       </div>
 
@@ -362,7 +362,7 @@
 
       <div class="sideFooter">
         <b>System:</b> Multi-Transport Billing<br/>
-        <b>Companies:</b> 4 Active<br/>
+        <b>Companies:</b> 2 Active (STC, Transin)<br/>
         <b>Mode:</b> GST • Non-GST
       </div>
     </aside>
@@ -391,13 +391,11 @@
           </div>
 
           <div class="cardBody">
-            <!-- Company Selector -->
+            <!-- Company Selector (STC + Transin only) -->
             <div class="companySelector">
               <div class="companyLabel">🏢 SELECT TRANSPORT COMPANY</div>
               <select id="companySelect">
                 <option value="stc">SOUTH TRANSPORT COMPANY (STC)</option>
-                <option value="ntc">NORTH TRANSPORT COMPANY (NTC)</option>
-                <option value="wtc">WEST TRANSPORT COMPANY (WTC)</option>
                 <option value="transin">TRANSIN LOGISTICS PVT LTD</option>
               </select>
             </div>
@@ -442,8 +440,8 @@
 
             <div class="miniNote">
               ✔ Each company has unique format & bank details<br/>
-              ✔ <b>Transin:</b> No DateArrival/DateDelivery/TruckType needed<br/>
-              ✔ <b>Others:</b> Full format with all fields
+              ✔ <b>Transin:</b> No DateArrival/DateDelivery/TruckType needed. Multiple InvoiceNos per row supported (use Alt+Enter in Excel).<br/>
+              ✔ <b>STC:</b> Full format with all fields
             </div>
 
             <div id="previewArea" style="display:none;">
@@ -488,7 +486,7 @@ LRNo, Destination, CNNumber, TruckNo, InvoiceNo, Pkgs, WeightKgs,
 FreightAmt, ToPointCharges, UnloadingCharge, SourceDetention,
 DestinationDetention
 
-<b>Others (Full Format):</b>
+<b>STC Format (Full):</b>
 + DateArrival, DateDelivery, TruckType</div>
           </div>
         </section>
@@ -521,11 +519,8 @@ DestinationDetention
       currentCompany = companySelect.value;
       const selected = companySelect.value.toUpperCase();
       companyInput.value = companySelect.value;
-      selectedCompanyDisplay.textContent = selected;
-      
-      // Update template download link
+      selectedCompanyDisplay.textContent = selected === "TRANSIN" ? "TRANSIN" : selected;
       updateTemplateLink();
-      
       console.log("Company changed to:", selected);
     });
 
@@ -555,7 +550,6 @@ DestinationDetention
         alert("Please select a file first!");
         return false;
       }
-      
       console.log("Form submitting with file:", fileInput.files[0].name);
       console.log("Company:", companyInput.value);
       toast.style.display = "block";
@@ -593,17 +587,17 @@ DestinationDetention
       try{
         const res = await fetch("/api/history");
         const data = await res.json();
-        
+
         if(!data || data.length === 0){
           historyBox.innerHTML = '<div class="emptyState">📭<br/>No history yet. Generate your first bill!</div>';
           return;
         }
-        
+
         let html = "";
         data.forEach((h, i)=>{
           const companyCode = h.company_code || 'stc';
           const companyClass = companyCode === 'transin' ? 'transin' : '';
-          
+
           html += `
             <div class="historyItem">
               <div class="histTime">${h.time}</div>
@@ -626,18 +620,16 @@ DestinationDetention
     }
     loadHistory();
 
-    // Download specific bill
     function downloadBill(filename){
       window.location.href = `/api/bills/${filename}`;
     }
 
-    // Scroll to recent section
     function scrollToRecent(e){
       e.preventDefault();
       document.getElementById('recent').scrollIntoView({behavior: 'smooth'});
     }
 
-    // Preview button
+    // Preview
     previewBtn.addEventListener("click", async ()=>{
       if(!fileInput.files || fileInput.files.length === 0) return;
 
@@ -661,7 +653,6 @@ DestinationDetention
         rowsCount.textContent = data.count;
         allPreviewRows = data.rows || [];
         renderPreview(allPreviewRows);
-
         previewArea.style.display = "block";
       }catch(e){
         alert("Preview error: " + e.message);
@@ -677,7 +668,6 @@ DestinationDetention
         previewTable.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);">No matching rows found</td></tr>';
         return;
       }
-
       previewTable.innerHTML = "";
       rows.forEach(r=>{
         const tr = document.createElement("tr");
@@ -693,15 +683,13 @@ DestinationDetention
       });
     }
 
-    // Search in preview table
+    // Search filter
     searchInput.addEventListener("input", ()=>{
       const q = (searchInput.value || "").toLowerCase().trim();
-      
       if(!q){
         renderPreview(allPreviewRows);
         return;
       }
-      
       const filtered = allPreviewRows.filter(r=>{
         return (
           String(r.FreightBillNo || "").toLowerCase().includes(q) ||
@@ -711,7 +699,6 @@ DestinationDetention
           String(r.Destination || "").toLowerCase().includes(q)
         );
       });
-      
       renderPreview(filtered);
     });
   </script>
